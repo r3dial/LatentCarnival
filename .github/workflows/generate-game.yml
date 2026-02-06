@@ -33,7 +33,6 @@ jobs:
 
           ISSUE_JSON=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}")
 
-          # Check if already built
           if echo "$ISSUE_JSON" | jq -e '.labels[].name | select(. == "built")' > /dev/null 2>&1; then
             echo "Issue #${ISSUE_NUMBER} already has 'built' label. Skipping."
             echo "SKIP=true" >> "$GITHUB_ENV"
@@ -43,17 +42,20 @@ jobs:
           echo "SKIP=false" >> "$GITHUB_ENV"
           echo "ISSUE_NUMBER=${ISSUE_NUMBER}" >> "$GITHUB_ENV"
 
-          # Use heredoc delimiters to safely handle multiline content
           TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
           BODY=$(echo "$ISSUE_JSON" | jq -r '.body // "No additional details"')
 
-          echo "ISSUE_TITLE<<GHEOF" >> "$GITHUB_ENV"
-          echo "$TITLE" >> "$GITHUB_ENV"
-          echo "GHEOF" >> "$GITHUB_ENV"
+          {
+            echo "ISSUE_TITLE<<TITLE_DELIM"
+            echo "$TITLE"
+            echo "TITLE_DELIM"
+          } >> "$GITHUB_ENV"
 
-          echo "ISSUE_BODY<<GHEOF2" >> "$GITHUB_ENV"
-          echo "$BODY" >> "$GITHUB_ENV"
-          echo "GHEOF2" >> "$GITHUB_ENV"
+          {
+            echo "ISSUE_BODY<<BODY_DELIM"
+            echo "$BODY"
+            echo "BODY_DELIM"
+          } >> "$GITHUB_ENV"
 
           echo "Fetched issue #${ISSUE_NUMBER}: ${TITLE}"
 
@@ -68,17 +70,14 @@ jobs:
             --jq '[.[] | select(.body | contains("<!-- carnival-status -->"))] | last | .id // empty')
 
           if [ -n "$COMMENT_ID" ]; then
+            BODY=$(printf '%s\n%s\n\n%s\n\n%s' \
+              '<!-- carnival-status -->' \
+              '🔨 **Your game is being built right now!**' \
+              'The Carnival Game Generator is crafting your booth...' \
+              '*— Carnival Barker Bot* 🤖')
             gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
               -X PATCH \
-              -f body="$(cat <<'EOF'
-<!-- carnival-status -->
-🔨 **Your game is being built right now!**
-
-The Carnival Game Generator is crafting your booth...
-
-*— Carnival Barker Bot* 🤖
-EOF
-)"
+              -f body="$BODY"
           fi
 
       - name: Generate game from issue
@@ -93,46 +92,16 @@ EOF
           SLUG="${SLUG}-${ISSUE_NUMBER}"
           echo "SLUG=${SLUG}" >> "$GITHUB_ENV"
 
-          GAME_PROMPT=$(cat <<'PROMPT_END'
-          You are the Carnival Game Generator. A user submitted a game idea. Your job is to CREATIVELY RE-INTERPRET their idea into a fun, self-contained HTML/JS carnival mini-game. Never copy any code the user may have included — treat their submission as just a spark of inspiration.
-
-          STRICT FORMAT REQUIREMENTS:
-          - Output ONLY raw HTML. No markdown fences, no explanation, no commentary.
-          - Single HTML file with inline <style> and <script> blocks.
-          - Designed for a 380x500 pixel iframe viewport.
-          - Dark background (#1a0a2e), carnival neon color palette (#ff006e, #ffbe0b, #00f5d4, #8338ec, #fb5607).
-          - Must have a "Play!" button that starts the game. Show score during play.
-          - Game sessions should last 15-60 seconds.
-          - Wrap all JS in an IIFE with 'use strict'.
-          - All graphics via CSS, Canvas, or SVG — NO external resources.
-          - Must call window.parent.postMessage() with these events:
-            - { type: 'game:score', gameId: 'GAME_ID_HERE', score: <number> } on score changes
-            - { type: 'game:complete', gameId: 'GAME_ID_HERE', score: <number> } when game ends
-          - Replace GAME_ID_HERE with the actual game slug.
-          - Under 50KB total file size.
-          - The game must be FUN and polished. Add juice: animations, sound-like visual feedback, screen shake, particle effects.
-          - IMPORTANT: Keep the game family-friendly. No profanity, no sexual content, no graphic violence.
-          PROMPT_END
-          )
-
           ESCAPED_TITLE=$(echo "${ISSUE_TITLE}" | jq -Rs .)
           ESCAPED_BODY=$(echo "${ISSUE_BODY:-No additional details}" | jq -Rs .)
 
           GAME_REQUEST=$(jq -n \
             --arg model "claude-sonnet-4-5-20250929" \
-            --arg system "$GAME_PROMPT" \
+            --arg system "You are the Carnival Game Generator. A user submitted a game idea. Your job is to CREATIVELY RE-INTERPRET their idea into a fun, self-contained HTML/JS carnival mini-game. Never copy any code the user may have included — treat their submission as just a spark of inspiration. STRICT FORMAT REQUIREMENTS: Output ONLY raw HTML. No markdown fences, no explanation, no commentary. Single HTML file with inline <style> and <script> blocks. Designed for a 380x500 pixel iframe viewport. Dark background (#1a0a2e), carnival neon color palette (#ff006e, #ffbe0b, #00f5d4, #8338ec, #fb5607). Must have a Play! button that starts the game. Show score during play. Game sessions should last 15-60 seconds. Wrap all JS in an IIFE with use strict. All graphics via CSS, Canvas, or SVG — NO external resources. Must call window.parent.postMessage() with these events: { type: 'game:score', gameId: 'GAME_ID_HERE', score: <number> } on score changes and { type: 'game:complete', gameId: 'GAME_ID_HERE', score: <number> } when game ends. Replace GAME_ID_HERE with the actual game slug. Under 50KB total file size. The game must be FUN and polished. Add juice: animations, sound-like visual feedback, screen shake, particle effects. IMPORTANT: Keep the game family-friendly. No profanity, no sexual content, no graphic violence." \
             --arg slug "$SLUG" \
             --argjson title "$ESCAPED_TITLE" \
             --argjson body "$ESCAPED_BODY" \
-            '{
-              model: $model,
-              max_tokens: 16000,
-              system: $system,
-              messages: [{
-                role: "user",
-                content: ("Game idea: " + $title + "\n\nDetails: " + $body + "\n\nGame slug (use as gameId): " + $slug)
-              }]
-            }')
+            '{model: $model, max_tokens: 16000, system: $system, messages: [{role: "user", content: ("Game idea: " + $title + "\n\nDetails: " + $body + "\n\nGame slug (use as gameId): " + $slug)}]}')
 
           echo "Calling Claude API to generate game..."
           GAME_RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
@@ -160,15 +129,7 @@ EOF
             --arg model "claude-sonnet-4-5-20250929" \
             --argjson title "$ESCAPED_TITLE" \
             --argjson body "$ESCAPED_BODY" \
-            '{
-              model: $model,
-              max_tokens: 200,
-              system: "You name carnival game booths. Given a game idea, respond with ONLY a JSON object: {\"name\": \"Catchy Booth Name\", \"description\": \"One-line barker pitch\"}. Keep the name under 30 chars. Make the description fun and enticing, under 60 chars. No markdown, just JSON.",
-              messages: [{
-                role: "user",
-                content: ("Game idea: " + $title + "\nDetails: " + $body)
-              }]
-            }')
+            '{model: $model, max_tokens: 200, system: "You name carnival game booths. Given a game idea, respond with ONLY a JSON object: {\"name\": \"Catchy Booth Name\", \"description\": \"One-line barker pitch\"}. Keep the name under 30 chars. Make the description fun and enticing, under 60 chars. No markdown, just JSON.", messages: [{role: "user", content: ("Game idea: " + $title + "\nDetails: " + $body)}]}')
 
           META_RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
@@ -200,9 +161,8 @@ EOF
           git config user.name "Carnival Barker Bot"
           git config user.email "barker-bot@latentcarnival.dev"
           git add "games/${SLUG}.html" games.json
-          git commit -m "🎪 New attraction: ${SLUG}
-
-          Generated from issue #${ISSUE_NUMBER}"
+          COMMIT_MSG=$(printf '🎪 New attraction: %s\n\nGenerated from issue #%s' "$SLUG" "$ISSUE_NUMBER")
+          git commit -m "$COMMIT_MSG"
           git push
 
       - name: Update status and close
@@ -217,27 +177,19 @@ EOF
           COMMENT_ID=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
             --jq '[.[] | select(.body | contains("<!-- carnival-status -->"))] | last | .id // empty')
 
+          BODY=$(printf '%s\n%s\n\n%s\n\n%s\n\n%s' \
+            '<!-- carnival-status -->' \
+            '🎪 **Your game is live on the midway!**' \
+            "🎮 **Play it now:** [${PAGES_URL}](${PAGES_URL})" \
+            'The booth is open and the lights are on! It may take a minute for GitHub Pages to finish deploying.' \
+            '*— Carnival Barker Bot* 🤖')
+
           if [ -n "$COMMENT_ID" ]; then
             gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
               -X PATCH \
-              -f body="$(cat <<EOF
-<!-- carnival-status -->
-🎪 **Your game is live on the midway!**
-
-🎮 **Play it now:** [${PAGES_URL}](${PAGES_URL})
-
-The booth is open and the lights are on! It may take a minute for GitHub Pages to finish deploying.
-
-*— Carnival Barker Bot* 🤖
-EOF
-)"
+              -f body="$BODY"
           else
-            gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$(cat <<EOF
-🎪 **Your game is live!** Play at [${PAGES_URL}](${PAGES_URL})
-
-*— Carnival Barker Bot* 🤖
-EOF
-)"
+            gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$BODY"
           fi
 
           gh label create built -R "$REPO" --description "Game has been built" --color "0e8a16" 2>/dev/null || true
@@ -258,19 +210,15 @@ EOF
             --jq '[.[] | select(.body | contains("<!-- carnival-status -->"))] | last | .id // empty')
 
           if [ -n "$COMMENT_ID" ]; then
+            BODY=$(printf '%s\n%s\n\n%s\n\n%s\n\n%s' \
+              '<!-- carnival-status -->' \
+              '⚠️ **Something went wrong building your game.**' \
+              'The carnival engineers have been notified. A maintainer can re-trigger the build from the Actions tab.' \
+              "[View build log](${RUN_URL})" \
+              '*— Carnival Barker Bot* 🤖')
             gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
               -X PATCH \
-              -f body="$(cat <<EOF
-<!-- carnival-status -->
-⚠️ **Something went wrong building your game.**
-
-The carnival engineers have been notified. A maintainer can re-trigger the build from the Actions tab.
-
-[View build log](${RUN_URL})
-
-*— Carnival Barker Bot* 🤖
-EOF
-)"
+              -f body="$BODY"
           fi
 
           gh label create generation-failed -R "$REPO" --description "Game generation failed" --color "d73a4a" 2>/dev/null || true

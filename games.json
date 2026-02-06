@@ -7,5 +7,14 @@
     "issue": 0,
     "date": "2026-02-06",
     "author": "claude"
+  },
+  {
+    "id": "duck-shooting-gallery-3",
+    "name": "Duck Hunt Splash Zone",
+    "description": "Aim true! Pop waddling ducks for prizes—hit gold for glory!",
+    "file": "duck-shooting-gallery-3.html",
+    "issue": 3,
+    "date": "2026-02-06",
+    "author": "claude"
   }
 ]

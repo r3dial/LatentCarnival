@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ring Toss</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a0a2e;
+  font-family: 'Arial Black', sans-serif;
+  overflow: hidden;
+  width: 380px;
+  height: 500px;
+  position: relative;
+}
+
+#game-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#title {
+  color: #ff006e;
+  font-size: 36px;
+  text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+  margin-bottom: 20px;
+  animation: neon-flicker 2s infinite alternate;
+}
+
+@keyframes neon-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e, 0 0 60px #ff006e;
+  }
+  20%, 24%, 55% {
+    text-shadow: none;
+  }
+}
+
+#play-btn {
+  background: linear-gradient(45deg, #ff006e, #8338ec);
+  color: white;
+  border: 3px solid #ffbe0b;
+  padding: 20px 60px;
+  font-size: 32px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 15px;
+  box-shadow: 0 0 30px #ff006e;
+  transition: transform 0.2s;
+  text-transform: uppercase;
+}
+
+#play-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 50px #ff006e;
+}
+
+#play-btn:active {
+  transform: scale(0.95);
+}
+
+#game-canvas {
+  display: none;
+  border: 3px solid #00f5d4;
+  box-shadow: 0 0 30px #00f5d4;
+}
+
+#hud {
+  display: none;
+  position: absolute;
+  top: 10px;
+  width: 100%;
+  padding: 0 20px;
+  justify-content: space-between;
+  color: #ffbe0b;
+  font-size: 18px;
+  text-shadow: 0 0 10px #ffbe0b;
+  z-index: 10;
+}
+
+#timer, #score {
+  background: rgba(26, 10, 46, 0.8);
+  padding: 8px 15px;
+  border: 2px solid #ffbe0b;
+  border-radius: 8px;
+}
+
+#insult {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 28px;
+  font-weight: bold;
+  color: #fb5607;
+  text-shadow: 0 0 20px #fb5607;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 100;
+}
+
+.shake {
+  animation: shake 0.3s;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0); }
+  25% { transform: translate(-10px, 0); }
+  75% { transform: translate(10px, 0); }
+}
+
+#final-score {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: rgba(26, 10, 46, 0.95);
+  padding: 40px;
+  border: 4px solid #00f5d4;
+  border-radius: 20px;
+  box-shadow: 0 0 50px #00f5d4;
+  z-index: 200;
+}
+
+#final-score h2 {
+  color: #ffbe0b;
+  font-size: 32px;
+  margin-bottom: 20px;
+  text-shadow: 0 0 20px #ffbe0b;
+}
+
+#final-score p {
+  color: #ff006e;
+  font-size: 48px;
+  margin-bottom: 10px;
+  text-shadow: 0 0 30px #ff006e;
+}
+
+#final-message {
+  color: #00f5d4;
+  font-size: 20px;
+  margin-top: 20px;
+  text-shadow: 0 0 10px #00f5d4;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <h1 id="title">RING TOSS</h1>
+  <button id="play-btn">PLAY!</button>
+  <canvas id="game-canvas" width="380" height="500"></canvas>
+  <div id="hud">
+    <div id="timer">TIME: <span id="time-val">30</span></div>
+    <div id="score">SCORE: <span id="score-val">0</span></div>
+  </div>
+  <div id="insult"></div>
+  <div id="final-score">
+    <h2>GAME OVER</h2>
+    <p id="final-score-val">0</p>
+    <div id="final-message"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+  const playBtn = document.getElementById('play-btn');
+  const title = document.getElementById('title');
+  const hud = document.getElementById('hud');
+  const timeEl = document.getElementById('time-val');
+  const scoreEl = document.getElementById('score-val');
+  const insultEl = document.getElementById('insult');
+  const finalScoreDiv = document.getElementById('final-score');
+  const finalScoreVal = document.getElementById('final-score-val');
+  const finalMessage = document.getElementById('final-message');
+
+  const insults = [
+    "WEAK!", "PATHETIC!", "TRY HARDER!", "ARE YOU EVEN TRYING?",
+    "MY GRANDMA COULD DO BETTER!", "REALLY?!", "EMBARRASSING!",
+    "YOU CALL THAT A TOSS?!", "HOPELESS!", "AWFUL!", "TERRIBLE!",
+    "COME ON!", "THAT'S TRASH!", "GARBAGE!", "YIKES!"
+  ];
+
+  const successPhrases = [
+    "FINALLY!", "ABOUT TIME!", "LUCKY SHOT!", "NOT BAD!",
+    "WOW, A MIRACLE!", "DID YOU MEAN TO DO THAT?", "NICE ONE!",
+    "OKAY, OKAY!", "IMPRESSIVE... ISH!"
+  ];
+
+  let gameState = {
+    score: 0,
+    timeLeft: 30,
+    playing: false,
+    rings: [],
+    pegs: [],
+    mouseX: 0,
+    mouseY: 0,
+    dragging: false,
+    dragRing: null,
+    particles: []
+  };
+
+  class Peg {
+    constructor(x, y, points) {
+      this.x = x;
+      this.y = y;
+      this.points = points;
+      this.radius = 15;
+      this.scored = false;
+      this.wobble = 0;
+    }
+
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.wobble);
+      
+      // Base
+      ctx.fillStyle = '#8338ec';
+      ctx.shadowColor = '#8338ec';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      ctx.arc(0, 30, 25, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Pole
+      ctx.fillStyle = '#ffbe0b';
+      ctx.shadowColor = '#ffbe0b';
+      ctx.fillRect(-8, -40, 16, 70);
+      
+      // Top
+      ctx.beginPath();
+      ctx.arc(0, -40, 12, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Points label
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ff006e';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.points + 'pts', 0, 50);
+      
+      ctx.restore();
+    }
+
+    update() {
+      if (this.scored) {
+        this.wobble = Math.sin(Date.now() / 100) * 0.1;
+      }
+    }
+  }
+
+  class Ring {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.vx = 0;
+      this.vy = 0;
+      this.rotation = 0;
+      this.vr = 0;
+      this.radius = 30;
+      this.innerRadius = 20;
+      this.isDragging = false;
+      this.thrown = false;
+      this.scored = false;
+      this.onPeg = null;
+    }
+
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rotation);
+      
+      ctx.strokeStyle = this.scored ? '#00f5d4' : '#ff006e';
+      ctx.lineWidth = 10;
+      ctx.shadowColor = this.scored ? '#00f5d4' : '#ff006e';
+      ctx.shadowBlur = 20;
+      
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+
+    update() {
+      if (!this.isDragging && this.thrown) {
+        this.vy += 0.5; // Gravity
+        this.x += this.vx;
+        this.y += this.vy;
+        this.rotation += this.vr;
+        
+        // Check collision with pegs
+        if (!this.scored) {
+          for (let peg of gameState.pegs) {
+            const dx = this.x - peg.x;
+            const dy = this.y - peg.y + 20;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < this.innerRadius && this.vy > 0) {
+              this.scored = true;
+              this.onPeg = peg;
+              this.x = peg.x;
+              this.y = peg.y - 20;
+              this.vx = 0;
+              this.vy = 0;
+              this.vr = 0;
+              
+              if (!peg.scored) {
+                peg.scored = true;
+                gameState.score += peg.points;
+                updateScore();
+                showInsult(successPhrases[Math.floor(Math.random() * successPhrases.length)], '#00f5d4');
+                createParticles(peg.x, peg.y, '#00f5d4');
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  class Particle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      this.vx = (Math.random() - 0.5) * 8;
+      this.vy = (Math.random() - 0.5) * 8 - 2;
+      this.life = 1;
+      this.color = color;
+      this.size = Math.random() * 6 + 3;
+    }
+
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.2;
+      this.life -= 0.02;
+    }
+
+    draw() {
+      ctx.save();
+      ctx.globalAlpha = this.life;
+      ctx.fillStyle = this.color;
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function createParticles(x, y, color) {
+    for (let i = 0; i < 20; i++) {
+      gameState.particles.push(new Particle(x, y, color));
+    }
+  }
+
+  function showInsult(text, color = '#fb5607') {
+    insultEl.textContent = text;
+    insultEl.style.color = color;
+    insultEl.style.textShadow = `0 0 20px ${color}`;
+    insultEl.style.opacity = 1;
+    insultEl.style.transform = 'translate(-50%, -50%) scale(1.5)';
+    
+    setTimeout(() => {
+      insultEl.style.opacity = 0;
+      insultEl.style.transform = 'translate(-50%, -50%) scale(0.5)';
+    }, 1500);
+  }
+
+  function updateScore() {
+    scoreEl.textContent = gameState.score;
+    window.parent.postMessage({
+      type: 'game:score',
+      gameId: 'ring-toss-4',
+      score: gameState.score
+    }, '*');
+  }
+
+  function initGame() {
+    gameState.score = 0;
+    gameState.timeLeft = 30;
+    gameState.rings = [];
+    gameState.pegs = [];
+    gameState.particles = [];
+    
+    // Create pegs with different point values
+    gameState.pegs.push(new Peg(100, 350, 10));
+    gameState.pegs.push(new Peg(190, 350, 20));
+    gameState.pegs.push(new Peg(280, 350, 10));
+    gameState.pegs.push(new Peg(145, 280, 30));
+    gameState.pegs.push(new Peg(235, 280, 30));
+    
+    // Create initial ring
+    addRing();
+    
+    updateScore();
+  }
+
+  function addRing() {
+    gameState.rings.push(new Ring(190, 80));
+  }
+
+  function startGame() {
+    playBtn.style.display = 'none';
+    title.style.display = 'none';
+    canvas.style.display = 'block';
+    hud.style.display = 'flex';
+    finalScoreDiv.style.display = 'none';
+    
+    gameState.playing = true;
+    initGame();
+    
+    const timer = setInterval(() => {
+      gameState.timeLeft--;
+      timeEl.textContent = gameState.timeLeft;
+      
+      if (gameState.timeLeft <= 0) {
+        clearInterval(timer);
+        endGame();
+      }
+    }, 1000);
+    
+    gameLoop();
+  }
+
+  function endGame() {
+    gameState.playing = false;
+    finalScoreVal.textContent = gameState.score;
+    
+    let message = '';
+    if (gameState.score === 0) {
+      message = "ABSOLUTELY PATHETIC!";
+    } else if (gameState.score < 50) {
+      message = "IS THAT ALL YOU GOT?!";
+    } else if (gameState.score < 100) {
+      message = "NOT TERRIBLE, I GUESS...";
+    } else if (gameState.score < 150) {
+      message = "PRETTY DECENT!";
+    } else {
+      message = "HOLY CRAP, YOU'RE GOOD!";
+    }
+    
+    finalMessage.textContent = message;
+    finalScoreDiv.style.display = 'block';
+    
+    window.parent.postMessage({
+      type: 'game:complete',
+      gameId: 'ring-toss-4',
+      score: gameState.score
+    }, '*');
+  }
+
+  function gameLoop() {
+    if (!gameState.playing) return;
+    
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Update and draw pegs
+    for (let peg of gameState.pegs) {
+      peg.update();
+      peg.draw();
+    }
+    
+    // Update and draw particles
+    gameState.particles = gameState.particles.filter(p => p.life > 0);
+    for (let particle of gameState.particles) {
+      particle.update();
+      particle.draw();
+    }
+    
+    // Update and draw rings
+    for (let i = gameState.rings.length - 1; i >= 0; i--) {
+      const ring = gameState.rings[i];
+      ring.update();
+      ring.draw();
+      
+      // Remove rings that go off screen
+      if (ring.y > canvas.height + 50 && ring.thrown) {
+        gameState.rings.splice(i, 1);
+        if (!ring.scored) {
+          showInsult(insults[Math.floor(Math.random() * insults.length)]);
+          document.body.classList.add('shake');
+          setTimeout(() => document.body.classList.remove('shake'), 300);
+        }
+        // Add new ring if we have time left
+        if (gameState.timeLeft > 0) {
+          addRing();
+        }
+      }
+    }
+    
+    requestAnimationFrame(gameLoop);
+  }
+
+  canvas.addEventListener('mousedown', (e) => {
+    if (!gameState.playing) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    for (let ring of gameState.rings) {
+      if (!ring.thrown) {
+        const dx = x - ring.x;
+        const dy = y - ring.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < ring.radius) {
+          ring.isDragging = true;
+          gameState.dragging = true;
+          gameState.dragRing = ring;
+          break;
+        }
+      }
+    }
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (!gameState.playing || !gameState.dragging) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    if (gameState.dragRing) {
+      gameState.dragRing.x = x;
+      gameState.dragRing.y = y;
+    }
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    if (!gameState.playing || !gameState.dragging) return;
+    
+    if (gameState.dragRing) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      const dx = x - gameState.dragRing.x;
+      const dy = y - gameState.dragRing.y;
+      
+      gameState.dragRing.vx = dx * 0.3;
+      gameState.dragRing.vy = dy * 0.3;
+      gameState.dragRing.vr = (Math.random() - 0.5) * 0.3;
+      gameState.dragRing.isDragging = false;
+      gameState.dragRing.thrown = true;
+    }
+    
+    gameState.dragging = false;
+    gameState.dragRing = null;
+  });
+
+  playBtn.addEventListener('click', startGame);
+
+})();
+</script>
+</body>
+</html>

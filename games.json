@@ -16,5 +16,14 @@
     "issue": 3,
     "date": "2026-02-06",
     "author": "claude"
+  },
+  {
+    "id": "ring-toss-4",
+    "name": "Salty Ring Fling",
+    "description": "Toss rings, get roasted! This booth talks back!",
+    "file": "ring-toss-4.html",
+    "issue": 4,
+    "date": "2026-02-06",
+    "author": "claude"
   }
 ]

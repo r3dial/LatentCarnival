@@ -1,0 +1,11 @@
+[
+  {
+    "id": "whack-a-mole",
+    "name": "Whack-a-Mole",
+    "description": "Bonk the critters before they hide!",
+    "file": "whack-a-mole.html",
+    "issue": 0,
+    "date": "2026-02-06",
+    "author": "claude"
+  }
+]

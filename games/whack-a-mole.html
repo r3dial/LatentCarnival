@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whack-a-Mole</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 380px; height: 500px; overflow: hidden;
+    background: #1a0a2e; color: #fff;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    user-select: none;
+  }
+  #hud {
+    display: flex; justify-content: space-between; align-items: center;
+    width: 100%; padding: 10px 20px;
+  }
+  .hud-item { font-size: 1.1rem; font-weight: 700; }
+  .score-val { color: #ffbe0b; text-shadow: 0 0 8px #fb5607; }
+  .time-val { color: #00f5d4; text-shadow: 0 0 8px #00f5d4; }
+  h1 {
+    font-size: 1.6rem; color: #ffbe0b; text-align: center; margin: 5px 0;
+    text-shadow: 0 0 10px #fb5607, 0 0 20px #ff006e;
+    letter-spacing: 0.08em;
+  }
+  #grid {
+    display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px);
+    gap: 10px; margin-top: 10px;
+  }
+  .hole {
+    width: 100px; height: 100px;
+    background: radial-gradient(ellipse at center, #2a1a3e 40%, #1a0a2e 100%);
+    border: 3px solid #3a2a4e;
+    border-radius: 50%;
+    position: relative; overflow: hidden; cursor: pointer;
+  }
+  .mole {
+    position: absolute; bottom: -70px; left: 50%; transform: translateX(-50%);
+    width: 60px; height: 60px; transition: bottom 0.15s ease-out;
+    pointer-events: none;
+  }
+  .mole.up { bottom: 15px; }
+  .mole.bonked { bottom: 15px; }
+  /* Mole drawn with CSS */
+  .mole-body {
+    width: 50px; height: 45px; background: #8b6914;
+    border-radius: 50% 50% 45% 45%; margin: 0 auto; position: relative;
+  }
+  .mole-body::before, .mole-body::after {
+    content: ''; position: absolute; top: 10px;
+    width: 10px; height: 10px; background: #111; border-radius: 50%;
+  }
+  .mole-body::before { left: 10px; }
+  .mole-body::after { right: 10px; }
+  .mole-nose {
+    width: 12px; height: 8px; background: #ff006e; border-radius: 50%;
+    margin: 0 auto; position: relative; top: -8px;
+  }
+  .bonk-text {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    font-size: 1.4rem; font-weight: 900; color: #ff006e;
+    text-shadow: 0 0 10px #ff006e;
+    pointer-events: none; display: none;
+  }
+  .bonked .bonk-text { display: block; }
+  #start-screen, #end-screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(10, 5, 20, 0.92); z-index: 10;
+  }
+  .play-btn {
+    margin-top: 20px; padding: 14px 48px;
+    background: linear-gradient(135deg, #ff006e, #fb5607);
+    color: #fff; font-size: 1.4rem; font-weight: 800;
+    border: none; border-radius: 30px; cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    box-shadow: 0 0 20px rgba(255, 0, 110, 0.5);
+    transition: transform 0.15s, box-shadow 0.15s;
+    letter-spacing: 0.1em;
+  }
+  .play-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(255, 0, 110, 0.7);
+  }
+  .final-score {
+    font-size: 3rem; font-weight: 900; color: #ffbe0b;
+    text-shadow: 0 0 15px #fb5607;
+  }
+  .end-label { color: #00f5d4; font-size: 1rem; margin-top: 5px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<h1>WHACK-A-MOLE</h1>
+<div id="hud">
+  <div class="hud-item">Score: <span class="score-val" id="score">0</span></div>
+  <div class="hud-item">Time: <span class="time-val" id="timer">30</span></div>
+</div>
+<div id="grid"></div>
+
+<div id="start-screen">
+  <h1>WHACK-A-MOLE</h1>
+  <p style="color:#00f5d4; margin-top:10px;">Bonk the critters!</p>
+  <button class="play-btn" id="start-btn">Play!</button>
+</div>
+
+<div id="end-screen" class="hidden">
+  <div class="end-label">GAME OVER</div>
+  <div class="final-score" id="final-score">0</div>
+  <div class="end-label">points</div>
+  <button class="play-btn" id="restart-btn">Play Again!</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var GAME_ID = 'whack-a-mole';
+  var GAME_TIME = 30;
+  var MOLE_MIN = 600;
+  var MOLE_MAX = 1200;
+
+  var grid = document.getElementById('grid');
+  var scoreEl = document.getElementById('score');
+  var timerEl = document.getElementById('timer');
+  var startScreen = document.getElementById('start-screen');
+  var endScreen = document.getElementById('end-screen');
+  var finalScoreEl = document.getElementById('final-score');
+  var startBtn = document.getElementById('start-btn');
+  var restartBtn = document.getElementById('restart-btn');
+
+  var score = 0;
+  var timeLeft = GAME_TIME;
+  var timerInterval = null;
+  var moleTimeouts = [];
+  var holes = [];
+
+  // Build grid
+  for (var i = 0; i < 9; i++) {
+    var hole = document.createElement('div');
+    hole.className = 'hole';
+    hole.dataset.index = i;
+    hole.innerHTML =
+      '<div class="mole">' +
+        '<div class="mole-body"></div>' +
+        '<div class="mole-nose"></div>' +
+      '</div>' +
+      '<div class="bonk-text">BONK!</div>';
+    grid.appendChild(hole);
+    holes.push(hole);
+
+    hole.addEventListener('click', function () {
+      var mole = this.querySelector('.mole');
+      if (!mole.classList.contains('up') || mole.classList.contains('bonked')) return;
+      mole.classList.remove('up');
+      mole.classList.add('bonked');
+      this.querySelector('.bonk-text').style.display = 'block';
+      score++;
+      scoreEl.textContent = score;
+      sendScore();
+      setTimeout(function (h) {
+        h.querySelector('.bonk-text').style.display = 'none';
+        h.querySelector('.mole').classList.remove('bonked');
+      }.bind(null, this), 300);
+    });
+  }
+
+  function popMole() {
+    if (timeLeft <= 0) return;
+    var available = holes.filter(function (h) {
+      return !h.querySelector('.mole').classList.contains('up');
+    });
+    if (available.length === 0) return;
+    var hole = available[Math.floor(Math.random() * available.length)];
+    var mole = hole.querySelector('.mole');
+    mole.classList.add('up');
+
+    var upTime = MOLE_MIN + Math.random() * (MOLE_MAX - MOLE_MIN);
+    var t = setTimeout(function () {
+      mole.classList.remove('up');
+    }, upTime);
+    moleTimeouts.push(t);
+
+    var next = 400 + Math.random() * 800;
+    var t2 = setTimeout(popMole, next);
+    moleTimeouts.push(t2);
+  }
+
+  function startGame() {
+    score = 0;
+    timeLeft = GAME_TIME;
+    scoreEl.textContent = '0';
+    timerEl.textContent = timeLeft;
+    startScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+
+    holes.forEach(function (h) {
+      h.querySelector('.mole').classList.remove('up', 'bonked');
+      h.querySelector('.bonk-text').style.display = 'none';
+    });
+
+    timerInterval = setInterval(function () {
+      timeLeft--;
+      timerEl.textContent = timeLeft;
+      if (timeLeft <= 0) {
+        endGame();
+      }
+    }, 1000);
+
+    popMole();
+    // Pop a second mole after a short delay for more action
+    setTimeout(popMole, 500);
+  }
+
+  function endGame() {
+    clearInterval(timerInterval);
+    moleTimeouts.forEach(clearTimeout);
+    moleTimeouts = [];
+
+    holes.forEach(function (h) {
+      h.querySelector('.mole').classList.remove('up', 'bonked');
+    });
+
+    finalScoreEl.textContent = score;
+    endScreen.classList.remove('hidden');
+    sendComplete();
+  }
+
+  function sendScore() {
+    try {
+      window.parent.postMessage({ type: 'game:score', gameId: GAME_ID, score: score }, '*');
+    } catch (e) {}
+  }
+
+  function sendComplete() {
+    try {
+      window.parent.postMessage({ type: 'game:complete', gameId: GAME_ID, score: score }, '*');
+    } catch (e) {}
+  }
+
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+})();
+</script>
+</body>
+</html>

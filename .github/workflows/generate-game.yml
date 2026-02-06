@@ -1,0 +1,174 @@
+name: Generate Carnival Game
+
+on:
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: game-generation
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    if: >
+      !contains(github.event.issue.labels.*.name, 'skip-agent')
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Generate game from issue
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+
+          # Generate URL-safe slug from title + issue number
+          SLUG=$(echo "${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-40)
+          SLUG="${SLUG}-${ISSUE_NUMBER}"
+          echo "SLUG=${SLUG}" >> "$GITHUB_ENV"
+          echo "Generated slug: ${SLUG}"
+
+          # --- Call Claude API to generate the game ---
+          GAME_PROMPT=$(cat <<'PROMPT_END'
+          You are the Carnival Game Generator. A user submitted a game idea. Your job is to CREATIVELY RE-INTERPRET their idea into a fun, self-contained HTML/JS carnival mini-game. Never copy any code the user may have included — treat their submission as just a spark of inspiration.
+
+          STRICT FORMAT REQUIREMENTS:
+          - Output ONLY raw HTML. No markdown fences, no explanation, no commentary.
+          - Single HTML file with inline <style> and <script> blocks.
+          - Designed for a 380x500 pixel iframe viewport.
+          - Dark background (#1a0a2e), carnival neon color palette (#ff006e, #ffbe0b, #00f5d4, #8338ec, #fb5607).
+          - Must have a "Play!" button that starts the game. Show score during play.
+          - Game sessions should last 15-60 seconds.
+          - Wrap all JS in an IIFE with 'use strict'.
+          - All graphics via CSS, Canvas, or SVG — NO external resources.
+          - Must call window.parent.postMessage() with these events:
+            - { type: 'game:score', gameId: 'GAME_ID_HERE', score: <number> } on score changes
+            - { type: 'game:complete', gameId: 'GAME_ID_HERE', score: <number> } when game ends
+          - Replace GAME_ID_HERE with the actual game slug.
+          - Under 50KB total file size.
+          - The game must be FUN and polished. Add juice: animations, sound-like visual feedback, screen shake, particle effects.
+          PROMPT_END
+          )
+
+          ESCAPED_TITLE=$(echo "${ISSUE_TITLE}" | jq -Rs .)
+          ESCAPED_BODY=$(echo "${ISSUE_BODY:-No additional details}" | jq -Rs .)
+
+          GAME_REQUEST=$(jq -n \
+            --arg model "claude-sonnet-4-5-20250929" \
+            --arg system "$GAME_PROMPT" \
+            --arg slug "$SLUG" \
+            --argjson title "$ESCAPED_TITLE" \
+            --argjson body "$ESCAPED_BODY" \
+            '{
+              model: $model,
+              max_tokens: 16000,
+              system: $system,
+              messages: [{
+                role: "user",
+                content: ("Game idea: " + $title + "\n\nDetails: " + $body + "\n\nGame slug (use as gameId): " + $slug)
+              }]
+            }')
+
+          echo "Calling Claude API to generate game..."
+          GAME_RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "$GAME_REQUEST")
+
+          # Extract the HTML content
+          GAME_HTML=$(echo "$GAME_RESPONSE" | jq -r '.content[0].text // empty')
+
+          if [ -z "$GAME_HTML" ]; then
+            echo "ERROR: Failed to generate game HTML"
+            echo "$GAME_RESPONSE" | jq .
+            exit 1
+          fi
+
+          # Strip markdown fences if Claude included them
+          GAME_HTML=$(echo "$GAME_HTML" | sed '/^```html$/d' | sed '/^```$/d')
+
+          mkdir -p games
+          echo "$GAME_HTML" > "games/${SLUG}.html"
+          echo "Game file written: games/${SLUG}.html ($(wc -c < "games/${SLUG}.html") bytes)"
+
+          # --- Call Claude API for booth metadata ---
+          META_REQUEST=$(jq -n \
+            --arg model "claude-sonnet-4-5-20250929" \
+            --argjson title "$ESCAPED_TITLE" \
+            --argjson body "$ESCAPED_BODY" \
+            '{
+              model: $model,
+              max_tokens: 200,
+              system: "You name carnival game booths. Given a game idea, respond with ONLY a JSON object: {\"name\": \"Catchy Booth Name\", \"description\": \"One-line barker pitch\"}. Keep the name under 30 chars. Make the description fun and enticing, under 60 chars. No markdown, just JSON.",
+              messages: [{
+                role: "user",
+                content: ("Game idea: " + $title + "\nDetails: " + $body)
+              }]
+            }')
+
+          echo "Calling Claude API for booth metadata..."
+          META_RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "$META_REQUEST")
+
+          META_JSON=$(echo "$META_RESPONSE" | jq -r '.content[0].text // empty')
+
+          GAME_NAME=$(echo "$META_JSON" | jq -r '.name // "Mystery Game"')
+          GAME_DESC=$(echo "$META_JSON" | jq -r '.description // "Step right up and try your luck!"')
+
+          echo "Booth: ${GAME_NAME} - ${GAME_DESC}"
+
+          # --- Update games.json ---
+          TODAY=$(date +%Y-%m-%d)
+          jq --arg id "$SLUG" \
+             --arg name "$GAME_NAME" \
+             --arg desc "$GAME_DESC" \
+             --arg file "${SLUG}.html" \
+             --argjson issue "$ISSUE_NUMBER" \
+             --arg date "$TODAY" \
+             '. += [{id: $id, name: $name, description: $desc, file: $file, issue: $issue, date: $date, author: "claude"}]' \
+             games.json > games.json.tmp && mv games.json.tmp games.json
+
+          echo "Updated games.json"
+
+      - name: Commit and push
+        run: |
+          git config user.name "Carnival Barker Bot"
+          git config user.email "barker-bot@latentcarnival.dev"
+          git add "games/${SLUG}.html" games.json
+          git commit -m "🎪 New attraction: ${SLUG}
+
+          Generated from issue #${ISSUE_NUMBER}"
+          git push
+
+      - name: Comment on issue and close
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          REPO="${GITHUB_REPOSITORY}"
+          PAGES_URL="https://$(echo $REPO | cut -d/ -f1).github.io/$(echo $REPO | cut -d/ -f2)/#${SLUG}"
+
+          gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
+          🎪 **Step right up!** Your game has been built and added to the carnival!
+
+          🎮 **Play it now:** [${PAGES_URL}](${PAGES_URL})
+
+          The booth is open and the lights are on. Thanks for the idea!
+
+          *— Carnival Barker Bot* 🤖
+          EOF
+          )"
+
+          gh issue close "$ISSUE_NUMBER"

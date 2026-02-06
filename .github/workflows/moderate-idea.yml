@@ -4,7 +4,7 @@ on:
   issues:
     types: [opened]
 
-# No concurrency group — moderation runs immediately for every issue
+# No concurrency group - moderation runs immediately for every issue
 
 jobs:
   moderate:

@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crane Game</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a0a2e;
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  color: #fff;
+}
+
+#gameContainer {
+  width: 380px;
+  height: 500px;
+  position: relative;
+  background: linear-gradient(180deg, #1a0a2e 0%, #2d1b4e 100%);
+  border: 4px solid #8338ec;
+  border-radius: 12px;
+  box-shadow: 0 0 30px rgba(131, 56, 236, 0.5), inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+#startScreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(26, 10, 46, 0.95);
+  z-index: 100;
+}
+
+#title {
+  font-size: 48px;
+  color: #ff006e;
+  text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+  margin-bottom: 20px;
+  animation: neonPulse 2s infinite;
+}
+
+@keyframes neonPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+#playBtn {
+  padding: 20px 60px;
+  font-size: 32px;
+  font-weight: bold;
+  background: linear-gradient(45deg, #ff006e, #fb5607);
+  color: white;
+  border: 4px solid #ffbe0b;
+  border-radius: 50px;
+  cursor: pointer;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  box-shadow: 0 0 20px rgba(255, 0, 110, 0.6);
+  transition: all 0.3s;
+}
+
+#playBtn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 30px rgba(255, 0, 110, 0.9);
+}
+
+#gameArea {
+  display: none;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+#topBar {
+  height: 50px;
+  background: linear-gradient(90deg, #8338ec, #ff006e);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.stat {
+  font-size: 18px;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+}
+
+#craneArea {
+  position: relative;
+  width: 100%;
+  height: 350px;
+  background: linear-gradient(180deg, rgba(0, 245, 212, 0.1), rgba(0, 245, 212, 0.05));
+  border-bottom: 3px solid #00f5d4;
+  overflow: hidden;
+}
+
+#crane {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  z-index: 10;
+}
+
+#craneTop {
+  width: 80px;
+  height: 20px;
+  background: #ffbe0b;
+  border-radius: 10px;
+  margin: 0 auto;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+
+#craneWire {
+  width: 4px;
+  height: 40px;
+  background: linear-gradient(180deg, #888, #444);
+  margin: 0 auto;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  transition: height 0.3s;
+}
+
+#claw {
+  width: 40px;
+  height: 30px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.clawPart {
+  position: absolute;
+  width: 18px;
+  height: 30px;
+  background: linear-gradient(90deg, #fb5607, #ff006e);
+  border-radius: 0 0 10px 10px;
+  transform-origin: top center;
+  transition: transform 0.3s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+
+.clawPart:nth-child(1) {
+  left: 0;
+  transform: rotate(-15deg);
+}
+
+.clawPart:nth-child(2) {
+  right: 0;
+  transform: rotate(15deg);
+}
+
+.clawClosed .clawPart:nth-child(1) {
+  transform: rotate(-5deg);
+}
+
+.clawClosed .clawPart:nth-child(2) {
+  transform: rotate(5deg);
+}
+
+#prizeBin {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 100px;
+  background: rgba(255, 190, 11, 0.2);
+  border-top: 3px solid #ffbe0b;
+}
+
+.prize {
+  position: absolute;
+  width: 35px;
+  height: 35px;
+  border-radius: 50% 50% 45% 45%;
+  cursor: pointer;
+  transition: transform 0.2s;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+.prize.grabbed {
+  z-index: 5;
+}
+
+.bear {
+  background: linear-gradient(135deg, #d4a574 0%, #9b7653 100%);
+}
+
+.bunny {
+  background: linear-gradient(135deg, #ffc0cb 0%, #ff69b4 100%);
+}
+
+.cat {
+  background: linear-gradient(135deg, #ffbe0b 0%, #fb5607 100%);
+}
+
+.dog {
+  background: linear-gradient(135deg, #00f5d4 0%, #00a896 100%);
+}
+
+.prize::before {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  top: 8px;
+  left: 10px;
+  box-shadow: 10px 0 0 white;
+}
+
+.prize::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 4px;
+  background: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  bottom: 12px;
+  left: 15px;
+}
+
+#controls {
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+
+.controlBtn {
+  width: 70px;
+  height: 70px;
+  border: 3px solid #00f5d4;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8338ec, #ff006e);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(131, 56, 236, 0.5);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.controlBtn:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 5px 20px rgba(131, 56, 236, 0.8);
+}
+
+.controlBtn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.controlBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#dropBtn {
+  width: 80px;
+  height: 80px;
+  font-size: 16px;
+  background: linear-gradient(135deg, #ff006e, #fb5607);
+}
+
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: particleFloat 1s forwards;
+}
+
+@keyframes particleFloat {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-50px) scale(0);
+    opacity: 0;
+  }
+}
+
+.shake {
+  animation: shake 0.3s;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+#gameOver {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(26, 10, 46, 0.95);
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 101;
+}
+
+#finalScore {
+  font-size: 48px;
+  color: #ffbe0b;
+  text-shadow: 0 0 20px #ffbe0b;
+  margin-bottom: 20px;
+}
+
+#gameOverText {
+  font-size: 24px;
+  color: #00f5d4;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="startScreen">
+    <div id="title">🎪 CRANE<br>GAME 🎪</div>
+    <button id="playBtn">Play!</button>
+  </div>
+  
+  <div id="gameArea">
+    <div id="topBar">
+      <div class="stat">⏱️ <span id="timeLeft">60</span>s</div>
+      <div class="stat">🎯 Score: <span id="score">0</span></div>
+      <div class="stat">🧸 <span id="collected">0</span>/3</div>
+    </div>
+    
+    <div id="craneArea">
+      <div id="crane">
+        <div id="craneTop"></div>
+        <div id="craneWire"></div>
+        <div id="claw">
+          <div class="clawPart"></div>
+          <div class="clawPart"></div>
+        </div>
+      </div>
+      <div id="prizeBin"></div>
+    </div>
+    
+    <div id="controls">
+      <button class="controlBtn" id="leftBtn">◄</button>
+      <button class="controlBtn" id="dropBtn">DROP!</button>
+      <button class="controlBtn" id="rightBtn">►</button>
+    </div>
+  </div>
+  
+  <div id="gameOver">
+    <div id="gameOverText">Game Over!</div>
+    <div id="finalScore">Score: <span id="finalScoreValue">0</span></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  const GAME_ID = 'crane-game-6';
+  let gameState = {
+    score: 0,
+    timeLeft: 60,
+    craneX: 190,
+    prizes: [],
+    gameActive: false,
+    craneMoving: false,
+    collected: 0,
+    targetToWin: 3
+  };
+  
+  const elements = {
+    startScreen: document.getElementById('startScreen'),
+    gameArea: document.getElementById('gameArea'),
+    gameOver: document.getElementById('gameOver'),
+    playBtn: document.getElementById('playBtn'),
+    crane: document.getElementById('crane'),
+    craneWire: document.getElementById('craneWire'),
+    claw: document.getElementById('claw'),
+    craneArea: document.getElementById('craneArea'),
+    leftBtn: document.getElementById('leftBtn'),
+    rightBtn: document.getElementById('rightBtn'),
+    dropBtn: document.getElementById('dropBtn'),
+    score: document.getElementById('score'),
+    timeLeft: document.getElementById('timeLeft'),
+    collected: document.getElementById('collected'),
+    finalScoreValue: document.getElementById('finalScoreValue')
+  };
+  
+  const prizeTypes = ['bear', 'bunny', 'cat', 'dog'];
+  
+  function init() {
+    elements.playBtn.addEventListener('click', startGame);
+    elements.leftBtn.addEventListener('click', () => moveCrane(-1));
+    elements.rightBtn.addEventListener('click', () => moveCrane(1));
+    elements.dropBtn.addEventListener('click', dropClaw);
+  }
+  
+  function startGame() {
+    elements.startScreen.style.display = 'none';
+    elements.gameArea.style.display = 'block';
+    gameState = {
+      score: 0,
+      timeLeft: 60,
+      craneX: 190,
+      prizes: [],
+      gameActive: true,
+      craneMoving: false,
+      collected: 0,
+      targetToWin: 3
+    };
+    
+    updateDisplay();
+    spawnPrizes();
+    startTimer();
+  }
+  
+  function spawnPrizes() {
+    const binArea = elements.craneArea.getBoundingClientRect();
+    const numPrizes = 12;
+    
+    for (let i = 0; i < numPrizes; i++) {
+      const prize = document.createElement('div');
+      prize.className = 'prize ' + prizeTypes[Math.floor(Math.random() * prizeTypes.length)];
+      
+      const x = 20 + Math.random() * 320;
+      const y = 100 + Math.random() * 200;
+      
+      prize.style.left = x + 'px';
+      prize.style.top = y + 'px';
+      
+      elements.craneArea.appendChild(prize);
+      gameState.prizes.push({
+        element: prize,
+        x: x,
+        y: y,
+        grabbed: false
+      });
+    }
+  }
+  
+  function moveCrane(direction) {
+    if (!gameState.gameActive || gameState.craneMoving) return;
+    
+    gameState.craneX += direction * 25;
+    gameState.craneX = Math.max(30, Math.min(350, gameState.craneX));
+    
+    elements.crane.style.left = gameState.craneX + 'px';
+  }
+  
+  function dropClaw() {
+    if (!gameState.gameActive || gameState.craneMoving) return;
+    
+    gameState.craneMoving = true;
+    disableControls();
+    
+    elements.craneWire.style.height = '200px';
+    elements.claw.classList.add('clawClosed');
+    
+    setTimeout(() => {
+      checkGrab();
+      setTimeout(() => {
+        elements.craneWire.style.height = '40px';
+        setTimeout(() => {
+          elements.claw.classList.remove('clawClosed');
+          gameState.craneMoving = false;
+          enableControls();
+        }, 300);
+      }, 500);
+    }, 600);
+  }
+  
+  function checkGrab() {
+    const craneRect = elements.claw.getBoundingClientRect();
+    const clawCenterX = craneRect.left + craneRect.width / 2;
+    const clawCenterY = craneRect.top + craneRect.height / 2;
+    
+    let grabbed = null;
+    let minDist = 30;
+    
+    gameState.prizes.forEach(prize => {
+      if (prize.grabbed) return;
+      
+      const prizeRect = prize.element.getBoundingClientRect();
+      const prizeCenterX = prizeRect.left + prizeRect.width / 2;
+      const prizeCenterY = prizeRect.top + prizeRect.height / 2;
+      
+      const dist = Math.sqrt(
+        Math.pow(clawCenterX - prizeCenterX, 2) +
+        Math.pow(clawCenterY - prizeCenterY, 2)
+      );
+      
+      if (dist < minDist) {
+        minDist = dist;
+        grabbed = prize;
+      }
+    });
+    
+    if (grabbed && Math.random() > 0.3) {
+      grabbed.grabbed = true;
+      grabbed.element.classList.add('grabbed');
+      
+      const moveInterval = setInterval(() => {
+        const craneRect = elements.claw.getBoundingClientRect();
+        const containerRect = elements.craneArea.getBoundingClientRect();
+        grabbed.element.style.left = (craneRect.left - containerRect.left + 10) + 'px';
+        grabbed.element.style.top = (craneRect.top - containerRect.top + 20) + 'px';
+      }, 16);
+      
+      setTimeout(() => {
+        clearInterval(moveInterval);
+        if (parseInt(grabbed.element.style.top) < 50) {
+          collectPrize(grabbed);
+        } else {
+          grabbed.grabbed = false;
+          grabbed.element.classList.remove('grabbed');
+        }
+      }, 800);
+    }
+  }
+  
+  function collectPrize(prize) {
+    const points = 100;
+    gameState.score += points;
+    gameState.collected++;
+    
+    createParticles(prize.element.offsetLeft + 17, prize.element.offsetTop + 17);
+    
+    prize.element.remove();
+    const index = gameState.prizes.indexOf(prize);
+    if (index > -1) {
+      gameState.prizes.splice(index, 1);
+    }
+    
+    updateDisplay();
+    postScore();
+    
+    if (gameState.collected >= gameState.targetToWin) {
+      endGame();
+    }
+  }
+  
+  function createParticles(x, y) {
+    const colors = ['#ff006e', '#ffbe0b', '#00f5d4', '#8338ec'];
+    for (let i = 0; i < 8; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      particle.style.left = x + 'px';
+      particle.style.top = y + 'px';
+      particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+      particle.style.transform = `translate(${(Math.random() - 0.5) * 40}px, ${(Math.random() - 0.5) * 40}px)`;
+      elements.craneArea.appendChild(particle);
+      
+      setTimeout(() => particle.remove(), 1000);
+    }
+  }
+  
+  function startTimer() {
+    const timer = setInterval(() => {
+      if (!gameState.gameActive) {
+        clearInterval(timer);
+        return;
+      }
+      
+      gameState.timeLeft--;
+      elements.timeLeft.textContent = gameState.timeLeft;
+      
+      if (gameState.timeLeft <= 0) {
+        clearInterval(timer);
+        endGame();
+      }
+    }, 1000);
+  }
+  
+  function updateDisplay() {
+    elements.score.textContent = gameState.score;
+    elements.collected.textContent = gameState.collected;
+    elements.timeLeft.textContent = gameState.timeLeft;
+  }
+  
+  function disableControls() {
+    elements.leftBtn.disabled = true;
+    elements.rightBtn.disabled = true;
+    elements.dropBtn.disabled = true;
+  }
+  
+  function enableControls() {
+    if (!gameState.gameActive) return;
+    elements.leftBtn.disabled = false;
+    elements.rightBtn.disabled = false;
+    elements.dropBtn.disabled = false;
+  }
+  
+  function postScore() {
+    window.parent.postMessage({
+      type: 'game:score',
+      gameId: GAME_ID,
+      score: gameState.score
+    }, '*');
+  }
+  
+  function endGame() {
+    gameState.gameActive = false;
+    disableControls();
+    
+    window.parent.postMessage({
+      type: 'game:complete',
+      gameId: GAME_ID,
+      score: gameState.score
+    }, '*');
+    
+    elements.finalScoreValue.textContent = gameState.score;
+    elements.gameOver.style.display = 'flex';
+  }
+  
+  init();
+})();
+</script>
+</body>
+</html>

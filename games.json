@@ -25,5 +25,14 @@
     "issue": 4,
     "date": "2026-02-06",
     "author": "claude"
+  },
+  {
+    "id": "crane-game-6",
+    "name": "Claw-some Prizes",
+    "description": "Grab a fluffy friend! Test your skills with the claw!",
+    "file": "crane-game-6.html",
+    "issue": 6,
+    "date": "2026-02-06",
+    "author": "claude"
   }
 ]

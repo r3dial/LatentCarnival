@@ -295,13 +295,11 @@ jobs:
           PAGES_URL="https://$(echo $REPO | cut -d/ -f1).github.io/$(echo $REPO | cut -d/ -f2)/#${SLUG}"
 
           gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
-          🎪 **Step right up!** Your game has been built and added to the carnival!
+          🎪 **Your game is being set up on the midway!**
 
-          🎮 **Play it now:** [${PAGES_URL}](${PAGES_URL})
+          🎮 **It'll show up here in a couple of minutes:** [${PAGES_URL}](${PAGES_URL})
 
-          The booth is open and the lights are on. Thanks for the idea!
-
-          *(Note: It may take a minute for GitHub Pages to deploy the new game.)*
+          The code is committed — just waiting for GitHub Pages to roll out the new booth. Refresh in a minute or two and your game will be ready to play!
 
           *— Carnival Barker Bot* 🤖
           EOF

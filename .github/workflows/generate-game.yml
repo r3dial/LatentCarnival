@@ -163,6 +163,7 @@ jobs:
           git add "games/${SLUG}.html" games.json
           COMMIT_MSG=$(printf '🎪 New attraction: %s\n\nGenerated from issue #%s' "$SLUG" "$ISSUE_NUMBER")
           git commit -m "$COMMIT_MSG"
+          git pull --rebase
           git push
 
       - name: Update status and close

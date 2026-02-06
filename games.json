@@ -52,5 +52,14 @@
     "issue": 14,
     "date": "2026-02-06",
     "author": "claude"
+  },
+  {
+    "id": "ride-15",
+    "name": "Whirl-a-Magic Carousel",
+    "description": "Step right up! Round and round on painted ponies!",
+    "file": "ride-15.html",
+    "issue": 15,
+    "date": "2026-02-06",
+    "author": "claude"
   }
 ]

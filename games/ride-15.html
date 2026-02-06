@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carousel Catch</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    width: 380px;
+    height: 500px;
+    background: #1a0a2e;
+    font-family: 'Arial Black', sans-serif;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  #gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  
+  #startScreen, #endScreen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(26, 10, 46, 0.95);
+    z-index: 10;
+  }
+  
+  #endScreen {
+    display: none;
+  }
+  
+  h1 {
+    font-size: 42px;
+    color: #ff006e;
+    text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+    margin-bottom: 10px;
+    animation: glow 2s ease-in-out infinite;
+  }
+  
+  @keyframes glow {
+    0%, 100% { text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e; }
+    50% { text-shadow: 0 0 30px #ff006e, 0 0 60px #ff006e, 0 0 80px #ff006e; }
+  }
+  
+  .subtitle {
+    font-size: 16px;
+    color: #ffbe0b;
+    margin-bottom: 30px;
+    text-align: center;
+    text-shadow: 0 0 10px #ffbe0b;
+  }
+  
+  button {
+    font-family: 'Arial Black', sans-serif;
+    font-size: 24px;
+    padding: 15px 40px;
+    background: linear-gradient(45deg, #ff006e, #8338ec);
+    color: white;
+    border: 3px solid #00f5d4;
+    border-radius: 50px;
+    cursor: pointer;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    box-shadow: 0 0 20px rgba(255, 0, 110, 0.5);
+    transition: all 0.3s;
+  }
+  
+  button:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 30px rgba(255, 0, 110, 0.8);
+  }
+  
+  button:active {
+    transform: scale(0.95);
+  }
+  
+  #score {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    font-size: 28px;
+    color: #00f5d4;
+    text-shadow: 0 0 10px #00f5d4;
+    z-index: 5;
+    font-weight: bold;
+  }
+  
+  #timer {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 28px;
+    color: #ffbe0b;
+    text-shadow: 0 0 10px #ffbe0b;
+    z-index: 5;
+    font-weight: bold;
+  }
+  
+  #finalScore {
+    font-size: 48px;
+    color: #00f5d4;
+    text-shadow: 0 0 20px #00f5d4;
+    margin: 20px 0;
+  }
+  
+  .instruction {
+    font-size: 14px;
+    color: #fb5607;
+    text-align: center;
+    max-width: 300px;
+    margin-top: 20px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="startScreen">
+    <h1>🎠 CAROUSEL CATCH 🎠</h1>
+    <div class="subtitle">Grab the golden tickets!</div>
+    <button id="playBtn">Play!</button>
+    <div class="instruction">Click the golden tickets as they spin around the carousel!</div>
+  </div>
+  
+  <div id="endScreen">
+    <h1>RIDE OVER!</h1>
+    <div id="finalScore">0</div>
+    <div class="subtitle">Golden Tickets Caught</div>
+    <button id="replayBtn">Play Again!</button>
+  </div>
+  
+  <div id="score" style="display:none;">Score: 0</div>
+  <div id="timer" style="display:none;">30</div>
+
+  <script>
+(function() {
+  'use strict';
+  
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const startScreen = document.getElementById('startScreen');
+  const endScreen = document.getElementById('endScreen');
+  const playBtn = document.getElementById('playBtn');
+  const replayBtn = document.getElementById('replayBtn');
+  const scoreEl = document.getElementById('score');
+  const timerEl = document.getElementById('timer');
+  const finalScoreEl = document.getElementById('finalScore');
+  
+  canvas.width = 380;
+  canvas.height = 500;
+  
+  let gameActive = false;
+  let score = 0;
+  let timeLeft = 30;
+  let rotation = 0;
+  let horses = [];
+  let tickets = [];
+  let particles = [];
+  let shakeAmount = 0;
+  
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2 + 20;
+  const carouselRadius = 120;
+  
+  class Horse {
+    constructor(angle, color) {
+      this.angle = angle;
+      this.color = color;
+      this.bobOffset = Math.random() * Math.PI * 2;
+    }
+    
+    draw(time) {
+      const x = centerX + Math.cos(this.angle + rotation) * carouselRadius;
+      const y = centerY + Math.sin(this.angle + rotation) * carouselRadius + Math.sin(time / 200 + this.bobOffset) * 10;
+      
+      ctx.save();
+      ctx.translate(x, y);
+      
+      // Shadow for depth
+      const scale = (Math.sin(this.angle + rotation) + 1) / 2 * 0.4 + 0.6;
+      ctx.scale(scale, scale);
+      
+      // Horse body
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 20, 25, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Horse head
+      ctx.beginPath();
+      ctx.ellipse(-8, -15, 12, 15, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Pole
+      ctx.strokeStyle = '#ffbe0b';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, -35);
+      ctx.lineTo(0, 35);
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+  }
+  
+  class Ticket {
+    constructor() {
+      this.angle = Math.random() * Math.PI * 2;
+      this.radius = carouselRadius + 30;
+      this.collected = false;
+      this.scale = 1;
+    }
+    
+    draw() {
+      if (this.collected) return;
+      
+      const x = centerX + Math.cos(this.angle + rotation) * this.radius;
+      const y = centerY + Math.sin(this.angle + rotation) * this.radius;
+      
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation * 2);
+      ctx.scale(this.scale, this.scale);
+      
+      // Glowing golden ticket
+      const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 15);
+      gradient.addColorStop(0, '#ffbe0b');
+      gradient.addColorStop(0.5, '#fb5607');
+      gradient.addColorStop(1, 'rgba(251, 86, 7, 0)');
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, 15, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Star shape
+      ctx.fillStyle = '#ffbe0b';
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const angle = (i * 4 * Math.PI) / 5 - Math.PI / 2;
+        const radius = i % 2 === 0 ? 8 : 4;
+        const px = Math.cos(angle) * radius;
+        const py = Math.sin(angle) * radius;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.restore();
+    }
+    
+    checkClick(mouseX, mouseY) {
+      if (this.collected) return false;
+      
+      const x = centerX + Math.cos(this.angle + rotation) * this.radius;
+      const y = centerY + Math.sin(this.angle + rotation) * this.radius;
+      
+      const dist = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
+      return dist < 20;
+    }
+  }
+  
+  class Particle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      this.vx = (Math.random() - 0.5) * 6;
+      this.vy = (Math.random() - 0.5) * 6 - 2;
+      this.life = 1;
+      this.color = color;
+      this.size = Math.random() * 4 + 2;
+    }
+    
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.2;
+      this.life -= 0.02;
+    }
+    
+    draw() {
+      ctx.save();
+      ctx.globalAlpha = this.life;
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  
+  function createParticles(x, y) {
+    const colors = ['#ffbe0b', '#fb5607', '#ff006e', '#00f5d4'];
+    for (let i = 0; i < 15; i++) {
+      particles.push(new Particle(x, y, colors[Math.floor(Math.random() * colors.length)]));
+    }
+  }
+  
+  function initGame() {
+    score = 0;
+    timeLeft = 30;
+    rotation = 0;
+    horses = [];
+    tickets = [];
+    particles = [];
+    
+    const colors = ['#ff006e', '#8338ec', '#00f5d4', '#fb5607'];
+    for (let i = 0; i < 4; i++) {
+      horses.push(new Horse((Math.PI * 2 * i) / 4, colors[i]));
+    }
+    
+    spawnTicket();
+  }
+  
+  function spawnTicket() {
+    if (tickets.length < 3) {
+      tickets.push(new Ticket());
+    }
+  }
+  
+  function updateScore(newScore) {
+    score = newScore;
+    scoreEl.textContent = `Score: ${score}`;
+    
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'game:score',
+        gameId: 'ride-15',
+        score: score
+      }, '*');
+    }
+  }
+  
+  function startGame() {
+    startScreen.style.display = 'none';
+    endScreen.style.display = 'none';
+    scoreEl.style.display = 'block';
+    timerEl.style.display = 'block';
+    gameActive = true;
+    initGame();
+    
+    const timerInterval = setInterval(() => {
+      if (!gameActive) {
+        clearInterval(timerInterval);
+        return;
+      }
+      
+      timeLeft--;
+      timerEl.textContent = timeLeft;
+      
+      if (timeLeft <= 0) {
+        endGame();
+        clearInterval(timerInterval);
+      }
+    }, 1000);
+    
+    const spawnInterval = setInterval(() => {
+      if (!gameActive) {
+        clearInterval(spawnInterval);
+        return;
+      }
+      spawnTicket();
+    }, 2000);
+  }
+  
+  function endGame() {
+    gameActive = false;
+    scoreEl.style.display = 'none';
+    timerEl.style.display = 'none';
+    finalScoreEl.textContent = score;
+    endScreen.style.display = 'flex';
+    
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'game:complete',
+        gameId: 'ride-15',
+        score: score
+      }, '*');
+    }
+  }
+  
+  canvas.addEventListener('click', (e) => {
+    if (!gameActive) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    for (let i = tickets.length - 1; i >= 0; i--) {
+      if (tickets[i].checkClick(mouseX, mouseY)) {
+        const x = centerX + Math.cos(tickets[i].angle + rotation) * tickets[i].radius;
+        const y = centerY + Math.sin(tickets[i].angle + rotation) * tickets[i].radius;
+        createParticles(x, y);
+        tickets.splice(i, 1);
+        updateScore(score + 1);
+        shakeAmount = 8;
+        break;
+      }
+    }
+  });
+  
+  function drawCarouselTop() {
+    // Carousel canopy
+    ctx.save();
+    ctx.translate(centerX, centerY - 180);
+    
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 100);
+    gradient.addColorStop(0, '#8338ec');
+    gradient.addColorStop(1, '#ff006e');
+    
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, 80, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Stripes
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2 + rotation / 2;
+      ctx.strokeStyle = i % 2 === 0 ? '#ffbe0b' : '#00f5d4';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(angle) * 80, Math.sin(angle) * 80);
+      ctx.stroke();
+    }
+    
+    // Center pole
+    ctx.fillStyle = '#ffbe0b';
+    ctx.beginPath();
+    ctx.arc(0, 0, 15, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+  }
+  
+  function drawCarouselBase() {
+    // Base platform
+    ctx.save();
+    ctx.translate(centerX, centerY + 180);
+    
+    const gradient = ctx.createLinearGradient(0, -20, 0, 20);
+    gradient.addColorStop(0, '#8338ec');
+    gradient.addColorStop(1, '#1a0a2e');
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(-140, -20, 280, 40);
+    
+    // Lights
+    for (let i = 0; i < 12; i++) {
+      const x = -130 + (i * 260) / 11;
+      const color = ['#ff006e', '#ffbe0b', '#00f5d4'][i % 3];
+      ctx.fillStyle = color;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = color;
+      ctx.beginPath();
+      ctx.arc(x, 0, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    ctx.restore();
+  }
+  
+  function animate(time) {
+    // Screen shake
+    ctx.save();
+    if (shakeAmount > 0) {
+      ctx.translate(
+        (Math.random() - 0.5) * shakeAmount,
+        (Math.random() - 0.5) * shakeAmount
+      );
+      shakeAmount *= 0.9;
+      if (shakeAmount < 0.1) shakeAmount = 0;
+    }
+    
+    // Clear
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    if (gameActive) {
+      rotation += 0.02;
+    }
+    
+    // Draw carousel elements
+    drawCarouselBase();
+    
+    // Draw horses (back to front)
+    const sortedHorses = [...horses].sort((a, b) => {
+      return Math.sin(a.angle + rotation) - Math.sin(b.angle + rotation);
+    });
+    
+    sortedHorses.forEach(horse => horse.draw(time));
+    
+    // Draw tickets
+    tickets.forEach(ticket => ticket.draw());
+    
+    drawCarouselTop();
+    
+    // Update and draw particles
+    particles = particles.filter(p => p.life > 0);
+    particles.forEach(p => {
+      p.update();
+      p.draw();
+    });
+    
+    ctx.restore();
+    
+    requestAnimationFrame(animate);
+  }
+  
+  playBtn.addEventListener('click', startGame);
+  replayBtn.addEventListener('click', startGame);
+  
+  animate(0);
+})();
+  </script>
+</body>
+</html>

@@ -118,7 +118,9 @@ jobs:
           > — ${MOVIE_CHAR}, **${MOVIE_NAME}**"
           fi
 
-          gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
+          REPO="${GITHUB_REPOSITORY}"
+
+          gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$(cat <<EOF
           🚫 **The carnival safety inspector has reviewed your idea and it didn't pass.**
 
           **Reason:** ${REJECTION_REASON}
@@ -131,9 +133,9 @@ jobs:
           EOF
           )"
 
-          gh label create rejected -R "${GITHUB_REPOSITORY}" --description "Game idea rejected by safety inspector" --color "d73a4a" 2>/dev/null || true
-          gh issue edit "$ISSUE_NUMBER" --add-label rejected
-          gh issue close "$ISSUE_NUMBER"
+          gh label create rejected -R "$REPO" --description "Game idea rejected by safety inspector" --color "d73a4a" 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label rejected
+          gh issue close "$ISSUE_NUMBER" -R "$REPO"
 
   generate:
     needs: moderate

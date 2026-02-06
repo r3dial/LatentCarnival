@@ -4,19 +4,13 @@ on:
   issues:
     types: [opened]
 
-# No concurrency group - moderation runs immediately for every issue
-
 jobs:
   moderate:
     runs-on: ubuntu-latest
-    if: >
-      !contains(github.event.issue.labels.*.name, 'skip-agent') &&
-      !contains(github.event.issue.labels.*.name, 'approved') &&
-      !contains(github.event.issue.labels.*.name, 'rejected') &&
-      !contains(github.event.issue.labels.*.name, 'built')
+    if: "!contains(github.event.issue.labels.*.name, 'skip-agent')"
     permissions:
       issues: write
-      actions: read
+      actions: write
 
     steps:
       - name: Moderate game idea
@@ -61,14 +55,12 @@ jobs:
 
           if [ "$APPROVED" = "true" ]; then
             echo "approved=true" >> "$GITHUB_OUTPUT"
-            echo "Idea approved!"
           else
             echo "approved=false" >> "$GITHUB_OUTPUT"
             echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
-            echo "Idea rejected: ${REASON}"
           fi
 
-      - name: Post accepted status with queue position
+      - name: Approve and trigger generation
         if: steps.check.outputs.approved == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -76,7 +68,7 @@ jobs:
         run: |
           REPO="${GITHUB_REPOSITORY}"
 
-          # Count how many generate-game runs are queued or in progress
+          # Count active generate-game runs for queue position
           QUEUE_COUNT=$(gh run list -R "$REPO" \
             --workflow=generate-game.yml \
             --json status \
@@ -87,7 +79,7 @@ jobs:
           if [ "$POSITION" -le 1 ]; then
             QUEUE_MSG="🟢 **No queue — your game will start building shortly!**"
           else
-            QUEUE_MSG="🟡 **Queue position: #${POSITION}** — there are $((POSITION - 1)) game(s) being built ahead of yours. We'll update this comment as it progresses."
+            QUEUE_MSG="🟡 **Queue position: #${POSITION}** — there are ${QUEUE_COUNT} game(s) being built ahead of yours."
           fi
 
           gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$(cat <<EOF
@@ -96,13 +88,19 @@ jobs:
 
 ${QUEUE_MSG}
 
+This comment will update as your game is built.
+
 *— Carnival Barker Bot* 🤖
 EOF
 )"
 
-          # Add approved label — this triggers the generate-game workflow
+          # Add approved label
           gh label create approved -R "$REPO" --description "Game idea approved by safety inspector" --color "0e8a16" 2>/dev/null || true
           gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label approved
+
+          # Trigger the generate workflow via workflow_dispatch
+          gh workflow run generate-game.yml -R "$REPO" -f issue_number="$ISSUE_NUMBER"
+          echo "Dispatched generate-game.yml for issue #${ISSUE_NUMBER}"
 
       - name: Reject unsafe idea
         if: steps.check.outputs.approved != 'true'
@@ -119,7 +117,6 @@ EOF
           ESCAPED_TITLE=$(echo "${ISSUE_TITLE}" | jq -Rs .)
           ESCAPED_REASON=$(echo "${REJECTION_REASON:-Content does not meet carnival standards}" | jq -Rs .)
 
-          # Get a relevant movie quote for the rejection
           QUOTE_REQUEST=$(jq -n \
             --arg model "claude-sonnet-4-5-20250929" \
             --argjson title "$ESCAPED_TITLE" \

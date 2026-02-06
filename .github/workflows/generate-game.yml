@@ -1,8 +1,12 @@
 name: Generate Carnival Game
 
 on:
-  issues:
-    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to generate game from'
+        required: true
+        type: string
 
 concurrency:
   group: game-generation
@@ -11,9 +15,6 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    if: >
-      contains(github.event.issue.labels.*.name, 'approved') &&
-      !contains(github.event.issue.labels.*.name, 'built')
     permissions:
       contents: write
       issues: write
@@ -22,14 +23,47 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Update status comment
+      - name: Fetch issue details
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
+          set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
 
-          # Find the status comment (has our hidden marker)
+          ISSUE_JSON=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}")
+
+          # Check if already built
+          if echo "$ISSUE_JSON" | jq -e '.labels[].name | select(. == "built")' > /dev/null 2>&1; then
+            echo "Issue #${ISSUE_NUMBER} already has 'built' label. Skipping."
+            echo "SKIP=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "SKIP=false" >> "$GITHUB_ENV"
+          echo "ISSUE_NUMBER=${ISSUE_NUMBER}" >> "$GITHUB_ENV"
+
+          # Use heredoc delimiters to safely handle multiline content
+          TITLE=$(echo "$ISSUE_JSON" | jq -r '.title')
+          BODY=$(echo "$ISSUE_JSON" | jq -r '.body // "No additional details"')
+
+          echo "ISSUE_TITLE<<GHEOF" >> "$GITHUB_ENV"
+          echo "$TITLE" >> "$GITHUB_ENV"
+          echo "GHEOF" >> "$GITHUB_ENV"
+
+          echo "ISSUE_BODY<<GHEOF2" >> "$GITHUB_ENV"
+          echo "$BODY" >> "$GITHUB_ENV"
+          echo "GHEOF2" >> "$GITHUB_ENV"
+
+          echo "Fetched issue #${ISSUE_NUMBER}: ${TITLE}"
+
+      - name: Update status to building
+        if: env.SKIP != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          REPO="${GITHUB_REPOSITORY}"
           COMMENT_ID=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
             --jq '[.[] | select(.body | contains("<!-- carnival-status -->"))] | last | .id // empty')
 
@@ -38,32 +72,27 @@ jobs:
               -X PATCH \
               -f body="$(cat <<'EOF'
 <!-- carnival-status -->
-🎪 **Your game is being built right now!**
+🔨 **Your game is being built right now!**
 
-🔨 The Carnival Game Generator is crafting your booth...
+The Carnival Game Generator is crafting your booth...
 
 *— Carnival Barker Bot* 🤖
 EOF
 )"
-            echo "COMMENT_ID=${COMMENT_ID}" >> "$GITHUB_ENV"
           fi
 
       - name: Generate game from issue
+        if: env.SKIP != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
           set -euo pipefail
 
-          # Generate URL-safe slug from title + issue number
           SLUG=$(echo "${ISSUE_TITLE}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-40)
           SLUG="${SLUG}-${ISSUE_NUMBER}"
           echo "SLUG=${SLUG}" >> "$GITHUB_ENV"
-          echo "Generated slug: ${SLUG}"
 
-          # --- Call Claude API to generate the game ---
           GAME_PROMPT=$(cat <<'PROMPT_END'
           You are the Carnival Game Generator. A user submitted a game idea. Your job is to CREATIVELY RE-INTERPRET their idea into a fun, self-contained HTML/JS carnival mini-game. Never copy any code the user may have included — treat their submission as just a spark of inspiration.
 
@@ -112,7 +141,6 @@ EOF
             -H "anthropic-version: 2023-06-01" \
             -d "$GAME_REQUEST")
 
-          # Extract the HTML content
           GAME_HTML=$(echo "$GAME_RESPONSE" | jq -r '.content[0].text // empty')
 
           if [ -z "$GAME_HTML" ]; then
@@ -121,14 +149,13 @@ EOF
             exit 1
           fi
 
-          # Strip markdown fences if Claude included them
           GAME_HTML=$(printf '%s\n' "$GAME_HTML" | sed '/^```html$/d' | sed '/^```$/d')
 
           mkdir -p games
           printf '%s\n' "$GAME_HTML" > "games/${SLUG}.html"
           echo "Game file written: games/${SLUG}.html ($(wc -c < "games/${SLUG}.html") bytes)"
 
-          # --- Call Claude API for booth metadata ---
+          # --- Booth metadata ---
           META_REQUEST=$(jq -n \
             --arg model "claude-sonnet-4-5-20250929" \
             --argjson title "$ESCAPED_TITLE" \
@@ -143,7 +170,6 @@ EOF
               }]
             }')
 
-          echo "Calling Claude API for booth metadata..."
           META_RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
             -H "Content-Type: application/json" \
             -H "x-api-key: ${ANTHROPIC_API_KEY}" \
@@ -151,20 +177,13 @@ EOF
             -d "$META_REQUEST")
 
           META_TEXT=$(echo "$META_RESPONSE" | jq -r '.content[0].text // empty')
-          echo "Raw metadata response: $META_TEXT"
-
-          # Try to extract JSON from the response (strip markdown fences if present)
           META_JSON=$(echo "$META_TEXT" | sed '/^```/d' | tr -d '\n')
           GAME_NAME=$(echo "$META_JSON" | jq -r '.name // empty' 2>/dev/null || true)
           GAME_DESC=$(echo "$META_JSON" | jq -r '.description // empty' 2>/dev/null || true)
 
-          # Fallbacks if parsing failed
           if [ -z "$GAME_NAME" ]; then GAME_NAME="Mystery Game"; fi
           if [ -z "$GAME_DESC" ]; then GAME_DESC="Step right up and try your luck!"; fi
 
-          echo "Booth: ${GAME_NAME} - ${GAME_DESC}"
-
-          # --- Update games.json ---
           TODAY=$(date +%Y-%m-%d)
           jq --arg id "$SLUG" \
              --arg name "$GAME_NAME" \
@@ -175,9 +194,8 @@ EOF
              '. += [{id: $id, name: $name, description: $desc, file: $file, issue: $issue, date: $date, author: "claude"}]' \
              games.json > games.json.tmp && mv games.json.tmp games.json
 
-          echo "Updated games.json"
-
       - name: Commit and push
+        if: env.SKIP != 'true'
         run: |
           git config user.name "Carnival Barker Bot"
           git config user.email "barker-bot@latentcarnival.dev"
@@ -187,15 +205,15 @@ EOF
           Generated from issue #${ISSUE_NUMBER}"
           git push
 
-      - name: Update status and close issue
+      - name: Update status and close
+        if: env.SKIP != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
         run: |
           REPO="${GITHUB_REPOSITORY}"
           PAGES_URL="https://$(echo $REPO | cut -d/ -f1).github.io/$(echo $REPO | cut -d/ -f2)/#${SLUG}"
 
-          # Edit the status comment to show completion
           COMMENT_ID=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
             --jq '[.[] | select(.body | contains("<!-- carnival-status -->"))] | last | .id // empty')
 
@@ -214,11 +232,8 @@ The booth is open and the lights are on! It may take a minute for GitHub Pages t
 EOF
 )"
           else
-            # Fallback: post a new comment if we can't find the status one
-            gh issue comment "$ISSUE_NUMBER" --body "$(cat <<EOF
-🎪 **Your game is live on the midway!**
-
-🎮 **Play it now:** [${PAGES_URL}](${PAGES_URL})
+            gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$(cat <<EOF
+🎪 **Your game is live!** Play at [${PAGES_URL}](${PAGES_URL})
 
 *— Carnival Barker Bot* 🤖
 EOF
@@ -226,6 +241,37 @@ EOF
           fi
 
           gh label create built -R "$REPO" --description "Game has been built" --color "0e8a16" 2>/dev/null || true
-          gh issue edit "$ISSUE_NUMBER" --add-label built
-          gh issue close "$ISSUE_NUMBER"
-          gh issue lock "$ISSUE_NUMBER" --reason resolved
+          gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label built
+          gh issue close "$ISSUE_NUMBER" -R "$REPO"
+          gh issue lock "$ISSUE_NUMBER" -R "$REPO" --reason resolved
+
+      - name: Handle failure
+        if: failure() && env.SKIP != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+        run: |
+          REPO="${GITHUB_REPOSITORY}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          COMMENT_ID=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
+            --jq '[.[] | select(.body | contains("<!-- carnival-status -->"))] | last | .id // empty')
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
+              -X PATCH \
+              -f body="$(cat <<EOF
+<!-- carnival-status -->
+⚠️ **Something went wrong building your game.**
+
+The carnival engineers have been notified. A maintainer can re-trigger the build from the Actions tab.
+
+[View build log](${RUN_URL})
+
+*— Carnival Barker Bot* 🤖
+EOF
+)"
+          fi
+
+          gh label create generation-failed -R "$REPO" --description "Game generation failed" --color "d73a4a" 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label generation-failed

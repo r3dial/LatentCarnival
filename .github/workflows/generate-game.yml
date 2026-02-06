@@ -94,10 +94,10 @@ jobs:
           fi
 
           # Strip markdown fences if Claude included them
-          GAME_HTML=$(echo "$GAME_HTML" | sed '/^```html$/d' | sed '/^```$/d')
+          GAME_HTML=$(printf '%s\n' "$GAME_HTML" | sed '/^```html$/d' | sed '/^```$/d')
 
           mkdir -p games
-          echo "$GAME_HTML" > "games/${SLUG}.html"
+          printf '%s\n' "$GAME_HTML" > "games/${SLUG}.html"
           echo "Game file written: games/${SLUG}.html ($(wc -c < "games/${SLUG}.html") bytes)"
 
           # --- Call Claude API for booth metadata ---
@@ -122,10 +122,17 @@ jobs:
             -H "anthropic-version: 2023-06-01" \
             -d "$META_REQUEST")
 
-          META_JSON=$(echo "$META_RESPONSE" | jq -r '.content[0].text // empty')
+          META_TEXT=$(echo "$META_RESPONSE" | jq -r '.content[0].text // empty')
+          echo "Raw metadata response: $META_TEXT"
 
-          GAME_NAME=$(echo "$META_JSON" | jq -r '.name // "Mystery Game"')
-          GAME_DESC=$(echo "$META_JSON" | jq -r '.description // "Step right up and try your luck!"')
+          # Try to extract JSON from the response (strip markdown fences if present)
+          META_JSON=$(echo "$META_TEXT" | sed '/^```/d' | tr -d '\n')
+          GAME_NAME=$(echo "$META_JSON" | jq -r '.name // empty' 2>/dev/null || true)
+          GAME_DESC=$(echo "$META_JSON" | jq -r '.description // empty' 2>/dev/null || true)
+
+          # Fallbacks if parsing failed
+          if [ -z "$GAME_NAME" ]; then GAME_NAME="Mystery Game"; fi
+          if [ -z "$GAME_DESC" ]; then GAME_DESC="Step right up and try your luck!"; fi
 
           echo "Booth: ${GAME_NAME} - ${GAME_DESC}"
 

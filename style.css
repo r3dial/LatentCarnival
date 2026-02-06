@@ -25,6 +25,11 @@ html, body {
   color: #fff;
 }
 
+body {
+  display: flex;
+  flex-direction: column;
+}
+
 /* === Starfield === */
 #stars {
   position: fixed;
@@ -52,7 +57,8 @@ html, body {
   position: relative;
   z-index: 10;
   text-align: center;
-  padding: 30px 20px 20px;
+  padding: 15px 20px 10px;
+  flex-shrink: 0;
   opacity: 0;
   transform: translateY(-30px);
   animation: archIn 1s ease-out 0.3s forwards;
@@ -164,7 +170,9 @@ html, body {
   z-index: 5;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 20px 60px 10px;
+  flex: 1;
+  min-height: 0;
+  padding: 10px 60px 0;
   opacity: 0;
   animation: fadeIn 0.8s ease-out 0.8s forwards;
   scrollbar-width: none;
@@ -181,8 +189,8 @@ html, body {
 #road {
   display: flex;
   gap: 50px;
-  padding: 10px 40px;
-  min-height: var(--booth-height);
+  padding: 5px 40px;
+  height: 100%;
   align-items: flex-end;
 }
 
@@ -206,7 +214,8 @@ html, body {
 /* === Booth === */
 .booth {
   flex: 0 0 var(--booth-width);
-  height: var(--booth-height);
+  height: 100%;
+  max-height: var(--booth-height);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -359,8 +368,8 @@ html, body {
 
 /* Iframe */
 .booth-frame iframe {
-  width: var(--iframe-width);
-  height: var(--iframe-height);
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
   border: none;
   border-radius: 2px;
 }
@@ -387,7 +396,8 @@ html, body {
 #ground {
   position: relative;
   z-index: 4;
-  height: 40px;
+  height: 20px;
+  flex-shrink: 0;
   background: linear-gradient(180deg, #2a1a0a 0%, #1a0f05 100%);
   border-top: 3px solid var(--wood-light);
   box-shadow: 0 -5px 20px rgba(92, 58, 30, 0.4);
@@ -427,9 +437,10 @@ html, body {
   position: relative;
   z-index: 10;
   text-align: center;
-  padding: 12px;
-  font-size: 0.8rem;
+  padding: 6px;
+  font-size: 0.75rem;
   color: #888;
+  flex-shrink: 0;
 }
 
 #footer a {

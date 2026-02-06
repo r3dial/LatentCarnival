@@ -1,0 +1,19 @@
+name: Auto-label new issues
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Add game-idea label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh label create game-idea -R "$GITHUB_REPOSITORY" --description "A game idea for the carnival" --color "0075ca" 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" -R "$GITHUB_REPOSITORY" --add-label game-idea

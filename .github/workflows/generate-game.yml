@@ -136,6 +136,7 @@ jobs:
           gh label create rejected -R "$REPO" --description "Game idea rejected by safety inspector" --color "d73a4a" 2>/dev/null || true
           gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label rejected
           gh issue close "$ISSUE_NUMBER" -R "$REPO"
+          gh issue lock "$ISSUE_NUMBER" -R "$REPO" --reason "off-topic"
 
   generate:
     needs: moderate
@@ -308,3 +309,4 @@ jobs:
           )"
 
           gh issue close "$ISSUE_NUMBER"
+          gh issue lock "$ISSUE_NUMBER" --reason resolved

@@ -43,5 +43,14 @@
     "issue": 12,
     "date": "2026-02-06",
     "author": "claude"
+  },
+  {
+    "id": "carnival-14",
+    "name": "Balloon Pop Roulette",
+    "description": "Spin the wheel, pop your color, win big prizes!",
+    "file": "carnival-14.html",
+    "issue": 14,
+    "date": "2026-02-06",
+    "author": "claude"
   }
 ]

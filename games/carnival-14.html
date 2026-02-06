@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Balloon Pop Frenzy</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    background: #1a0a2e;
+    font-family: 'Arial Black', Arial, sans-serif;
+    overflow: hidden;
+    width: 380px;
+    height: 500px;
+  }
+  
+  #game-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  #start-screen, #game-over-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    z-index: 100;
+  }
+  
+  #game-over-screen {
+    display: none;
+  }
+  
+  h1 {
+    font-size: 42px;
+    color: #ffbe0b;
+    text-shadow: 0 0 10px #ff006e, 0 0 20px #ff006e, 3px 3px 0 #000;
+    margin-bottom: 10px;
+    text-align: center;
+    padding: 0 20px;
+  }
+  
+  .subtitle {
+    font-size: 16px;
+    color: #00f5d4;
+    text-shadow: 0 0 5px #00f5d4, 2px 2px 0 #000;
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  
+  #play-btn, #replay-btn {
+    background: linear-gradient(135deg, #ff006e 0%, #8338ec 100%);
+    border: 4px solid #ffbe0b;
+    color: white;
+    font-size: 32px;
+    font-weight: bold;
+    padding: 15px 50px;
+    cursor: pointer;
+    border-radius: 15px;
+    text-shadow: 2px 2px 0 #000;
+    box-shadow: 0 5px 0 #5a1f7a, 0 0 20px #ff006e;
+    transition: transform 0.1s;
+  }
+  
+  #play-btn:hover, #replay-btn:hover {
+    transform: scale(1.05);
+  }
+  
+  #play-btn:active, #replay-btn:active {
+    transform: translateY(3px);
+    box-shadow: 0 2px 0 #5a1f7a, 0 0 20px #ff006e;
+  }
+  
+  #game-canvas {
+    display: none;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #0a0520 0%, #1a0a2e 100%);
+  }
+  
+  #score-display {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 28px;
+    color: #ffbe0b;
+    text-shadow: 0 0 10px #ff006e, 2px 2px 0 #000;
+    z-index: 50;
+    display: none;
+  }
+  
+  #timer-display {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 28px;
+    color: #00f5d4;
+    text-shadow: 0 0 10px #00f5d4, 2px 2px 0 #000;
+    z-index: 50;
+    display: none;
+  }
+  
+  .final-score {
+    font-size: 64px;
+    color: #ffbe0b;
+    text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e, 4px 4px 0 #000;
+    margin: 20px 0;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="start-screen">
+    <h1>BALLOON POP FRENZY!</h1>
+    <div class="subtitle">Pop balloons with your dart!<br>Hit the golden ones for bonus!</div>
+    <button id="play-btn">PLAY!</button>
+  </div>
+  
+  <div id="game-over-screen">
+    <h1>GAME OVER!</h1>
+    <div class="final-score" id="final-score">0</div>
+    <button id="replay-btn">PLAY AGAIN!</button>
+  </div>
+  
+  <div id="score-display">Score: <span id="score">0</span></div>
+  <div id="timer-display"><span id="timer">30</span>s</div>
+  
+  <canvas id="game-canvas"></canvas>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+  const startScreen = document.getElementById('start-screen');
+  const gameOverScreen = document.getElementById('game-over-screen');
+  const playBtn = document.getElementById('play-btn');
+  const replayBtn = document.getElementById('replay-btn');
+  const scoreDisplay = document.getElementById('score-display');
+  const timerDisplay = document.getElementById('timer-display');
+  const scoreSpan = document.getElementById('score');
+  const timerSpan = document.getElementById('timer');
+  const finalScoreSpan = document.getElementById('final-score');
+  
+  canvas.width = 380;
+  canvas.height = 500;
+  
+  let score = 0;
+  let timeLeft = 30;
+  let gameActive = false;
+  let balloons = [];
+  let particles = [];
+  let dart = null;
+  let shakeAmount = 0;
+  let comboMultiplier = 1;
+  let lastPopTime = 0;
+  
+  class Balloon {
+    constructor() {
+      this.radius = 25 + Math.random() * 15;
+      this.x = this.radius + Math.random() * (canvas.width - this.radius * 2);
+      this.y = canvas.height + this.radius;
+      this.speed = 1 + Math.random() * 2;
+      this.wobble = Math.random() * Math.PI * 2;
+      this.wobbleSpeed = 0.05 + Math.random() * 0.05;
+      this.isGolden = Math.random() < 0.15;
+      this.color = this.isGolden ? '#ffbe0b' : ['#ff006e', '#00f5d4', '#8338ec', '#fb5607'][Math.floor(Math.random() * 4)];
+      this.glowPhase = Math.random() * Math.PI * 2;
+    }
+    
+    update() {
+      this.y -= this.speed;
+      this.wobble += this.wobbleSpeed;
+      this.glowPhase += 0.1;
+      return this.y > -this.radius * 2;
+    }
+    
+    draw() {
+      const wobbleX = Math.sin(this.wobble) * 5;
+      
+      ctx.save();
+      ctx.translate(this.x + wobbleX, this.y);
+      
+      // String
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, this.radius);
+      ctx.lineTo(0, this.radius + 20);
+      ctx.stroke();
+      
+      // Glow for golden balloons
+      if (this.isGolden) {
+        const glowIntensity = 0.5 + Math.sin(this.glowPhase) * 0.3;
+        ctx.shadowBlur = 20 * glowIntensity;
+        ctx.shadowColor = this.color;
+      }
+      
+      // Balloon
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.beginPath();
+      ctx.arc(-this.radius * 0.3, -this.radius * 0.3, this.radius * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+    
+    contains(x, y) {
+      const wobbleX = Math.sin(this.wobble) * 5;
+      const dx = x - (this.x + wobbleX);
+      const dy = y - this.y;
+      return dx * dx + dy * dy <= this.radius * this.radius;
+    }
+  }
+  
+  class Particle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      this.vx = (Math.random() - 0.5) * 8;
+      this.vy = (Math.random() - 0.5) * 8;
+      this.life = 1;
+      this.color = color;
+      this.size = 3 + Math.random() * 5;
+    }
+    
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.3;
+      this.life -= 0.02;
+      return this.life > 0;
+    }
+    
+    draw() {
+      ctx.globalAlpha = this.life;
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  
+  class Dart {
+    constructor(startX, startY, targetX, targetY) {
+      this.x = startX;
+      this.y = startY;
+      const dx = targetX - startX;
+      const dy = targetY - startY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      this.vx = (dx / dist) * 15;
+      this.vy = (dy / dist) * 15;
+      this.angle = Math.atan2(dy, dx);
+      this.active = true;
+    }
+    
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      
+      if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+        this.active = false;
+      }
+    }
+    
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.angle);
+      
+      // Dart shaft
+      ctx.fillStyle = '#8338ec';
+      ctx.fillRect(-15, -2, 30, 4);
+      
+      // Dart point
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(15, 0);
+      ctx.lineTo(20, -3);
+      ctx.lineTo(20, 3);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Dart fletching
+      ctx.fillStyle = '#ff006e';
+      ctx.beginPath();
+      ctx.moveTo(-15, -5);
+      ctx.lineTo(-20, -8);
+      ctx.lineTo(-15, 0);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.beginPath();
+      ctx.moveTo(-15, 5);
+      ctx.lineTo(-20, 8);
+      ctx.lineTo(-15, 0);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.restore();
+    }
+  }
+  
+  function spawnBalloon() {
+    balloons.push(new Balloon());
+  }
+  
+  function createParticles(x, y, color, count = 20) {
+    for (let i = 0; i < count; i++) {
+      particles.push(new Particle(x, y, color));
+    }
+  }
+  
+  function updateScore(points) {
+    score += points * comboMultiplier;
+    scoreSpan.textContent = score;
+    
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'game:score',
+        gameId: 'carnival-14',
+        score: score
+      }, '*');
+    }
+  }
+  
+  function checkCollisions() {
+    if (!dart) return;
+    
+    for (let i = balloons.length - 1; i >= 0; i--) {
+      if (balloons[i].contains(dart.x, dart.y)) {
+        const balloon = balloons[i];
+        const points = balloon.isGolden ? 50 : 10;
+        
+        // Combo system
+        const now = Date.now();
+        if (now - lastPopTime < 500) {
+          comboMultiplier = Math.min(comboMultiplier + 0.5, 5);
+        } else {
+          comboMultiplier = 1;
+        }
+        lastPopTime = now;
+        
+        updateScore(points);
+        createParticles(balloon.x, balloon.y, balloon.color, balloon.isGolden ? 40 : 20);
+        balloons.splice(i, 1);
+        dart.active = false;
+        dart = null;
+        shakeAmount = balloon.isGolden ? 8 : 4;
+        break;
+      }
+    }
+  }
+  
+  function gameLoop() {
+    if (!gameActive) return;
+    
+    // Clear with shake effect
+    ctx.save();
+    const shakeX = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+    const shakeY = shakeAmount > 0 ? (Math.random() - 0.5) * shakeAmount : 0;
+    ctx.translate(shakeX, shakeY);
+    shakeAmount *= 0.9;
+    
+    ctx.fillStyle = '#0a0520';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw stars background
+    for (let i = 0; i < 50; i++) {
+      const x = (i * 137.5) % canvas.width;
+      const y = (i * 79.3) % canvas.height;
+      const size = (i % 3) + 1;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.fillRect(x, y, size, size);
+    }
+    
+    // Update and draw balloons
+    for (let i = balloons.length - 1; i >= 0; i--) {
+      if (!balloons[i].update()) {
+        balloons.splice(i, 1);
+      } else {
+        balloons[i].draw();
+      }
+    }
+    
+    // Update and draw particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      if (!particles[i].update()) {
+        particles.splice(i, 1);
+      } else {
+        particles[i].draw();
+      }
+    }
+    
+    // Update and draw dart
+    if (dart) {
+      dart.update();
+      if (!dart.active) {
+        dart = null;
+      } else {
+        dart.draw();
+        checkCollisions();
+      }
+    }
+    
+    // Draw combo multiplier
+    if (comboMultiplier > 1) {
+      ctx.font = 'bold 24px Arial';
+      ctx.fillStyle = '#fb5607';
+      ctx.textAlign = 'center';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#fb5607';
+      ctx.fillText(`x${comboMultiplier.toFixed(1)} COMBO!`, canvas.width / 2, 60);
+      ctx.shadowBlur = 0;
+    }
+    
+    ctx.restore();
+    requestAnimationFrame(gameLoop);
+  }
+  
+  function startGame() {
+    score = 0;
+    timeLeft = 30;
+    balloons = [];
+    particles = [];
+    dart = null;
+    comboMultiplier = 1;
+    lastPopTime = 0;
+    gameActive = true;
+    
+    scoreSpan.textContent = '0';
+    timerSpan.textContent = '30';
+    
+    startScreen.style.display = 'none';
+    gameOverScreen.style.display = 'none';
+    canvas.style.display = 'block';
+    scoreDisplay.style.display = 'block';
+    timerDisplay.style.display = 'block';
+    
+    // Spawn balloons periodically
+    const spawnInterval = setInterval(() => {
+      if (!gameActive) {
+        clearInterval(spawnInterval);
+        return;
+      }
+      spawnBalloon();
+    }, 800);
+    
+    // Timer countdown
+    const timerInterval = setInterval(() => {
+      if (!gameActive) {
+        clearInterval(timerInterval);
+        return;
+      }
+      
+      timeLeft--;
+      timerSpan.textContent = timeLeft;
+      
+      if (timeLeft <= 0) {
+        endGame();
+        clearInterval(timerInterval);
+      }
+    }, 1000);
+    
+    gameLoop();
+  }
+  
+  function endGame() {
+    gameActive = false;
+    canvas.style.display = 'none';
+    scoreDisplay.style.display = 'none';
+    timerDisplay.style.display = 'none';
+    gameOverScreen.style.display = 'flex';
+    finalScoreSpan.textContent = score;
+    
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'game:complete',
+        gameId: 'carnival-14',
+        score: score
+      }, '*');
+    }
+  }
+  
+  canvas.addEventListener('click', (e) => {
+    if (!gameActive || dart) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    dart = new Dart(canvas.width / 2, canvas.height - 20, x, y);
+  });
+  
+  playBtn.addEventListener('click', startGame);
+  replayBtn.addEventListener('click', startGame);
+  
+})();
+</script>
+</body>
+</html>

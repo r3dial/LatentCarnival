@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Balloon Pop Darts</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    width: 380px;
+    height: 500px;
+    background: #1a0a2e;
+    font-family: 'Arial Black', sans-serif;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  #gameCanvas {
+    display: block;
+    cursor: crosshair;
+  }
+  
+  #startScreen, #endScreen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(26, 10, 46, 0.95);
+    z-index: 10;
+  }
+  
+  #startScreen h1, #endScreen h1 {
+    color: #ff006e;
+    font-size: 42px;
+    text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+    margin-bottom: 20px;
+    animation: glow 1.5s ease-in-out infinite alternate;
+  }
+  
+  #startScreen p {
+    color: #00f5d4;
+    font-size: 14px;
+    margin: 10px 20px;
+    text-align: center;
+    line-height: 1.6;
+  }
+  
+  .points {
+    color: #ffbe0b;
+    font-size: 12px;
+    margin: 5px 0;
+  }
+  
+  #playButton, #replayButton {
+    background: linear-gradient(135deg, #ff006e, #8338ec);
+    border: 3px solid #00f5d4;
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    padding: 15px 50px;
+    border-radius: 50px;
+    cursor: pointer;
+    margin-top: 20px;
+    box-shadow: 0 0 30px rgba(255, 0, 110, 0.8);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  
+  #playButton:hover, #replayButton:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 50px rgba(255, 0, 110, 1);
+  }
+  
+  #playButton:active, #replayButton:active {
+    transform: scale(0.95);
+  }
+  
+  #endScreen {
+    display: none;
+  }
+  
+  #finalScore {
+    color: #ffbe0b;
+    font-size: 64px;
+    text-shadow: 0 0 20px #ffbe0b;
+    margin: 20px 0;
+  }
+  
+  #endMessage {
+    color: #00f5d4;
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+  
+  @keyframes glow {
+    from {
+      text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+    }
+    to {
+      text-shadow: 0 0 30px #ff006e, 0 0 60px #ff006e, 0 0 80px #ff006e;
+    }
+  }
+  
+  .hidden {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+<div id="startScreen">
+  <h1>🎯 BALLOON POP 🎯</h1>
+  <p>Click to throw darts at the floating balloons!</p>
+  <p class="points">🔴 Red = 10 pts</p>
+  <p class="points">🟡 Yellow = 20 pts</p>
+  <p class="points">🟢 Green = 30 pts</p>
+  <p class="points">🔵 Blue = 50 pts</p>
+  <p class="points">🟣 Purple = 100 pts</p>
+  <button id="playButton">PLAY!</button>
+</div>
+
+<canvas id="gameCanvas" width="380" height="500"></canvas>
+
+<div id="endScreen">
+  <h1>TIME'S UP!</h1>
+  <div id="endMessage">Final Score</div>
+  <div id="finalScore">0</div>
+  <button id="replayButton">PLAY AGAIN!</button>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const startScreen = document.getElementById('startScreen');
+  const endScreen = document.getElementById('endScreen');
+  const playButton = document.getElementById('playButton');
+  const replayButton = document.getElementById('replayButton');
+  const finalScoreEl = document.getElementById('finalScore');
+  
+  const GAME_ID = 'balloon-pop-darts-12';
+  const GAME_DURATION = 30000; // 30 seconds
+  
+  let gameState = 'start';
+  let score = 0;
+  let gameStartTime = 0;
+  let balloons = [];
+  let darts = [];
+  let particles = [];
+  let shakeAmount = 0;
+  
+  const balloonTypes = [
+    { color: '#ff006e', points: 10, weight: 35 },
+    { color: '#ffbe0b', points: 20, weight: 30 },
+    { color: '#00f5d4', points: 30, weight: 20 },
+    { color: '#fb5607', points: 50, weight: 10 },
+    { color: '#8338ec', points: 100, weight: 5 }
+  ];
+  
+  class Balloon {
+    constructor(x, y, type) {
+      this.x = x;
+      this.y = y;
+      this.type = type;
+      this.radius = 25;
+      this.speedY = -0.5 - Math.random() * 0.5;
+      this.wobble = Math.random() * Math.PI * 2;
+      this.wobbleSpeed = 0.02 + Math.random() * 0.02;
+      this.popped = false;
+      this.alpha = 1;
+    }
+    
+    update() {
+      this.y += this.speedY;
+      this.wobble += this.wobbleSpeed;
+      this.x += Math.sin(this.wobble) * 0.5;
+      
+      if (this.y < -50) {
+        this.reset();
+      }
+    }
+    
+    reset() {
+      this.x = Math.random() * (canvas.width - 60) + 30;
+      this.y = canvas.height + 50;
+      this.type = getRandomBalloonType();
+      this.popped = false;
+      this.alpha = 1;
+      this.wobble = Math.random() * Math.PI * 2;
+    }
+    
+    draw() {
+      ctx.save();
+      ctx.globalAlpha = this.alpha;
+      
+      // Balloon body
+      ctx.fillStyle = this.type.color;
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, this.radius, this.radius * 1.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Shine
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.beginPath();
+      ctx.ellipse(this.x - 8, this.y - 8, 8, 12, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // String
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y + this.radius * 1.15);
+      for (let i = 0; i < 30; i++) {
+        const offsetX = Math.sin(this.wobble + i * 0.3) * 3;
+        ctx.lineTo(this.x + offsetX, this.y + this.radius * 1.15 + i);
+      }
+      ctx.stroke();
+      
+      ctx.restore();
+    }
+    
+    checkHit(dartX, dartY) {
+      const dx = dartX - this.x;
+      const dy = dartY - this.y;
+      return Math.sqrt(dx * dx + dy * dy) < this.radius;
+    }
+  }
+  
+  class Dart {
+    constructor(x, y, targetX, targetY) {
+      this.x = x;
+      this.y = y;
+      this.targetX = targetX;
+      this.targetY = targetY;
+      this.speed = 15;
+      const angle = Math.atan2(targetY - y, targetX - x);
+      this.vx = Math.cos(angle) * this.speed;
+      this.vy = Math.sin(angle) * this.speed;
+      this.rotation = angle;
+      this.life = 1;
+    }
+    
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.life -= 0.02;
+    }
+    
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rotation);
+      ctx.globalAlpha = Math.max(0, this.life);
+      
+      // Dart body
+      ctx.fillStyle = '#ff006e';
+      ctx.beginPath();
+      ctx.moveTo(15, 0);
+      ctx.lineTo(-10, -3);
+      ctx.lineTo(-10, 3);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Dart tip
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(15, 0);
+      ctx.lineTo(10, -2);
+      ctx.lineTo(10, 2);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Fletching
+      ctx.fillStyle = '#00f5d4';
+      ctx.beginPath();
+      ctx.moveTo(-10, 0);
+      ctx.lineTo(-15, -5);
+      ctx.lineTo(-15, 5);
+      ctx.closePath();
+      ctx.fill();
+      
+      ctx.restore();
+    }
+  }
+  
+  class Particle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      this.vx = (Math.random() - 0.5) * 8;
+      this.vy = (Math.random() - 0.5) * 8;
+      this.life = 1;
+      this.color = color;
+      this.size = Math.random() * 6 + 3;
+    }
+    
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.3;
+      this.life -= 0.02;
+    }
+    
+    draw() {
+      ctx.save();
+      ctx.globalAlpha = this.life;
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+  
+  function getRandomBalloonType() {
+    const totalWeight = balloonTypes.reduce((sum, type) => sum + type.weight, 0);
+    let random = Math.random() * totalWeight;
+    
+    for (const type of balloonTypes) {
+      random -= type.weight;
+      if (random <= 0) return type;
+    }
+    
+    return balloonTypes[0];
+  }
+  
+  function initGame() {
+    score = 0;
+    balloons = [];
+    darts = [];
+    particles = [];
+    shakeAmount = 0;
+    
+    // Create initial balloons
+    for (let i = 0; i < 8; i++) {
+      const x = Math.random() * (canvas.width - 60) + 30;
+      const y = Math.random() * canvas.height;
+      balloons.push(new Balloon(x, y, getRandomBalloonType()));
+    }
+    
+    gameStartTime = Date.now();
+    updateScore(0);
+  }
+  
+  function updateScore(points) {
+    score += points;
+    window.parent.postMessage({
+      type: 'game:score',
+      gameId: GAME_ID,
+      score: score
+    }, '*');
+  }
+  
+  function endGame() {
+    gameState = 'end';
+    finalScoreEl.textContent = score;
+    endScreen.classList.remove('hidden');
+    
+    window.parent.postMessage({
+      type: 'game:complete',
+      gameId: GAME_ID,
+      score: score
+    }, '*');
+  }
+  
+  function createPopEffect(x, y, color, points) {
+    // Particles
+    for (let i = 0; i < 15; i++) {
+      particles.push(new Particle(x, y, color));
+    }
+    
+    // Screen shake
+    shakeAmount = 5;
+    
+    // Show points
+    particles.push({
+      x: x,
+      y: y,
+      vx: 0,
+      vy: -2,
+      life: 1,
+      text: '+' + points,
+      color: color,
+      update: function() {
+        this.y += this.vy;
+        this.life -= 0.015;
+      },
+      draw: function() {
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.strokeStyle = '#1a0a2e';
+        ctx.lineWidth = 3;
+        ctx.font = 'bold 24px Arial';
+        ctx.textAlign = 'center';
+        ctx.strokeText(this.text, this.x, this.y);
+        ctx.fillText(this.text, this.x, this.y);
+        ctx.restore();
+      }
+    });
+  }
+  
+  function drawBackground() {
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Stars
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    for (let i = 0; i < 30; i++) {
+      const x = (i * 73) % canvas.width;
+      const y = (i * 97) % canvas.height;
+      ctx.beginPath();
+      ctx.arc(x, y, 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  
+  function drawHUD() {
+    const timeLeft = Math.max(0, GAME_DURATION - (Date.now() - gameStartTime));
+    const seconds = Math.ceil(timeLeft / 1000);
+    
+    // Score
+    ctx.fillStyle = '#ffbe0b';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'left';
+    ctx.strokeStyle = '#1a0a2e';
+    ctx.lineWidth = 4;
+    ctx.strokeText('Score: ' + score, 10, 30);
+    ctx.fillText('Score: ' + score, 10, 30);
+    
+    // Timer
+    ctx.fillStyle = seconds <= 5 ? '#ff006e' : '#00f5d4';
+    ctx.textAlign = 'right';
+    ctx.strokeText('Time: ' + seconds, canvas.width - 10, 30);
+    ctx.fillText('Time: ' + seconds, canvas.width - 10, 30);
+  }
+  
+  function gameLoop() {
+    if (gameState !== 'playing') return;
+    
+    // Check if game is over
+    if (Date.now() - gameStartTime >= GAME_DURATION) {
+      endGame();
+      return;
+    }
+    
+    // Apply shake
+    ctx.save();
+    if (shakeAmount > 0) {
+      const shakeX = (Math.random() - 0.5) * shakeAmount;
+      const shakeY = (Math.random() - 0.5) * shakeAmount;
+      ctx.translate(shakeX, shakeY);
+      shakeAmount *= 0.9;
+      if (shakeAmount < 0.1) shakeAmount = 0;
+    }
+    
+    drawBackground();
+    
+    // Update and draw balloons
+    balloons.forEach(balloon => {
+      balloon.update();
+      balloon.draw();
+    });
+    
+    // Update and draw darts
+    darts = darts.filter(dart => {
+      dart.update();
+      dart.draw();
+      
+      // Check collisions with balloons
+      for (const balloon of balloons) {
+        if (!balloon.popped && balloon.checkHit(dart.x, dart.y)) {
+          balloon.popped = true;
+          createPopEffect(balloon.x, balloon.y, balloon.type.color, balloon.type.points);
+          updateScore(balloon.type.points);
+          balloon.reset();
+          return false;
+        }
+      }
+      
+      return dart.life > 0 && dart.x > -20 && dart.x < canvas.width + 20 && dart.y > -20 && dart.y < canvas.height + 20;
+    });
+    
+    // Update and draw particles
+    particles = particles.filter(particle => {
+      particle.update();
+      particle.draw();
+      return particle.life > 0;
+    });
+    
+    drawHUD();
+    
+    ctx.restore();
+    
+    requestAnimationFrame(gameLoop);
+  }
+  
+  canvas.addEventListener('click', (e) => {
+    if (gameState !== 'playing') return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Launch dart from bottom center
+    darts.push(new Dart(canvas.width / 2, canvas.height - 30, x, y));
+  });
+  
+  playButton.addEventListener('click', () => {
+    startScreen.classList.add('hidden');
+    gameState = 'playing';
+    initGame();
+    gameLoop();
+  });
+  
+  replayButton.addEventListener('click', () => {
+    endScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+    gameState = 'start';
+  });
+  
+})();
+</script>
+</body>
+</html>

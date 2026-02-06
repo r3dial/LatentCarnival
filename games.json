@@ -34,5 +34,14 @@
     "issue": 6,
     "date": "2026-02-06",
     "author": "claude"
+  },
+  {
+    "id": "balloon-pop-darts-12",
+    "name": "Pop 'Til You Drop!",
+    "description": "Dart your way to glory! Pop balloons fast for big prizes!",
+    "file": "balloon-pop-darts-12.html",
+    "issue": 12,
+    "date": "2026-02-06",
+    "author": "claude"
   }
 ]

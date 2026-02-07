@@ -456,17 +456,24 @@ body {
 /* === Mobile === */
 @media (max-width: 768px) {
   :root {
-    --booth-width: 340px;
-    --booth-height: 520px;
-    --iframe-width: 310px;
-    --iframe-height: 430px;
+    --booth-width: calc(100vw - 48px);
+  }
+
+  html, body {
+    overflow: auto;
+    overflow-x: hidden;
+  }
+
+  body {
+    height: auto;
+    min-height: 100vh;
   }
 
   #road-container {
     overflow-x: hidden;
-    overflow-y: auto;
+    overflow-y: visible;
+    flex: none;
     padding: 10px 20px;
-    max-height: calc(100vh - 180px);
   }
 
   #road {
@@ -474,9 +481,27 @@ body {
     align-items: center;
     gap: 30px;
     padding: 10px 0;
+    height: auto;
+  }
+
+  .booth {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: none;
+    width: var(--booth-width);
+  }
+
+  .booth-awning {
+    width: calc(var(--booth-width) + 10px);
+  }
+
+  .booth-frame {
+    flex: none;
+    height: 65vh;
+    min-height: 350px;
+    max-height: 500px;
   }
 
   #scroll-nav { display: none; }
-
   .nav-arrow { display: none; }
 }

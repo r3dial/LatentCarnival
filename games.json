@@ -106,5 +106,14 @@
     "issue": 21,
     "date": "2026-02-07",
     "author": "claude"
+  },
+  {
+    "id": "strongman-hammer-18",
+    "name": "Ring the Bell!",
+    "description": "Test your might! Swing the hammer and ring that bell!",
+    "file": "strongman-hammer-18.html",
+    "issue": 18,
+    "date": "2026-02-07",
+    "author": "claude"
   }
 ]

@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strongman Hammer</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    background: #1a0a2e;
+    font-family: 'Impact', 'Arial Black', sans-serif;
+    color: #ffbe0b;
+    overflow: hidden;
+    width: 380px;
+    height: 500px;
+  }
+  
+  #game-container {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  #title {
+    font-size: 36px;
+    color: #ff006e;
+    text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+    margin-bottom: 20px;
+    letter-spacing: 2px;
+  }
+  
+  #play-btn {
+    padding: 20px 60px;
+    font-size: 32px;
+    font-family: 'Impact', sans-serif;
+    background: linear-gradient(180deg, #fb5607 0%, #ff006e 100%);
+    color: white;
+    border: 4px solid #ffbe0b;
+    border-radius: 15px;
+    cursor: pointer;
+    box-shadow: 0 0 30px #ff006e;
+    transition: all 0.2s;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  }
+  
+  #play-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 40px #ff006e, 0 0 60px #ff006e;
+  }
+  
+  #play-btn:active {
+    transform: scale(0.95);
+  }
+  
+  #game-screen {
+    display: none;
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  
+  #score-display {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 28px;
+    color: #00f5d4;
+    text-shadow: 0 0 10px #00f5d4;
+    z-index: 100;
+  }
+  
+  #timer {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 20px;
+    color: #ffbe0b;
+    text-shadow: 0 0 10px #ffbe0b;
+    z-index: 100;
+  }
+  
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  
+  #instructions {
+    position: absolute;
+    top: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 16px;
+    color: #8338ec;
+    text-shadow: 0 0 8px #8338ec;
+    text-align: center;
+    z-index: 100;
+    animation: pulse 2s infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  
+  .particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 50;
+  }
+  
+  #result-screen {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(26, 10, 46, 0.95);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  
+  #final-score {
+    font-size: 48px;
+    color: #00f5d4;
+    text-shadow: 0 0 20px #00f5d4;
+    margin-bottom: 30px;
+  }
+  
+  #result-message {
+    font-size: 24px;
+    color: #ffbe0b;
+    text-shadow: 0 0 10px #ffbe0b;
+    margin-bottom: 40px;
+    text-align: center;
+    padding: 0 20px;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="menu-screen">
+    <div id="title">STRONGMAN<br>HAMMER</div>
+    <button id="play-btn">PLAY!</button>
+  </div>
+  
+  <div id="game-screen">
+    <div id="score-display">Score: 0</div>
+    <div id="timer">Time: 30</div>
+    <div id="instructions">Click when the power is HIGH!</div>
+    <canvas id="game-canvas"></canvas>
+  </div>
+  
+  <div id="result-screen">
+    <div id="final-score"></div>
+    <div id="result-message"></div>
+    <button id="play-btn-again" style="padding: 15px 40px; font-size: 24px; font-family: 'Impact', sans-serif; background: linear-gradient(180deg, #fb5607 0%, #ff006e 100%); color: white; border: 4px solid #ffbe0b; border-radius: 15px; cursor: pointer; box-shadow: 0 0 30px #ff006e;">PLAY AGAIN!</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  const GAME_ID = 'strongman-hammer-18';
+  const canvas = document.getElementById('game-canvas');
+  const ctx = canvas.getContext('2d');
+  const playBtn = document.getElementById('play-btn');
+  const playAgainBtn = document.getElementById('play-btn-again');
+  const menuScreen = document.getElementById('menu-screen');
+  const gameScreen = document.getElementById('game-screen');
+  const resultScreen = document.getElementById('result-screen');
+  const scoreDisplay = document.getElementById('score-display');
+  const timerDisplay = document.getElementById('timer');
+  const finalScoreDisplay = document.getElementById('final-score');
+  const resultMessage = document.getElementById('result-message');
+  const instructions = document.getElementById('instructions');
+  
+  let score = 0;
+  let timeLeft = 30;
+  let gameActive = false;
+  let powerMeter = 0;
+  let powerDirection = 1;
+  let hammerY = 0;
+  let hammerSwinging = false;
+  let bellRinging = false;
+  let bellRingTime = 0;
+  let puckY = 0;
+  let puckMoving = false;
+  let puckTargetY = 0;
+  let screenShake = 0;
+  
+  canvas.width = 380;
+  canvas.height = 500;
+  
+  function init() {
+    playBtn.addEventListener('click', startGame);
+    playAgainBtn.addEventListener('click', () => {
+      resultScreen.style.display = 'none';
+      menuScreen.style.display = 'block';
+    });
+    
+    canvas.addEventListener('click', handleClick);
+  }
+  
+  function startGame() {
+    menuScreen.style.display = 'none';
+    gameScreen.style.display = 'block';
+    instructions.style.display = 'block';
+    score = 0;
+    timeLeft = 30;
+    gameActive = true;
+    powerMeter = 0;
+    powerDirection = 1;
+    hammerSwinging = false;
+    puckY = 0;
+    puckMoving = false;
+    bellRinging = false;
+    
+    updateScore(0);
+    gameLoop();
+    startTimer();
+  }
+  
+  function startTimer() {
+    const timerInterval = setInterval(() => {
+      if (!gameActive) {
+        clearInterval(timerInterval);
+        return;
+      }
+      
+      timeLeft--;
+      timerDisplay.textContent = `Time: ${timeLeft}`;
+      
+      if (timeLeft <= 0) {
+        endGame();
+        clearInterval(timerInterval);
+      }
+    }, 1000);
+  }
+  
+  function handleClick() {
+    if (!gameActive || hammerSwinging || puckMoving) return;
+    
+    instructions.style.display = 'none';
+    hammerSwinging = true;
+    puckMoving = true;
+    
+    const power = powerMeter;
+    const points = Math.floor(power * 100);
+    puckTargetY = -250 - (power * 100);
+    
+    updateScore(score + points);
+    
+    if (power > 0.9) {
+      bellRinging = true;
+      bellRingTime = Date.now();
+      screenShake = 15;
+      createParticles(190, 150, '#ffbe0b');
+    } else if (power > 0.7) {
+      screenShake = 10;
+      createParticles(190, 150, '#fb5607');
+    } else if (power > 0.5) {
+      screenShake = 5;
+      createParticles(190, 150, '#8338ec');
+    }
+  }
+  
+  function updateScore(newScore) {
+    score = newScore;
+    scoreDisplay.textContent = `Score: ${score}`;
+    
+    if (typeof window.parent !== 'undefined') {
+      window.parent.postMessage({
+        type: 'game:score',
+        gameId: GAME_ID,
+        score: score
+      }, '*');
+    }
+  }
+  
+  function endGame() {
+    gameActive = false;
+    
+    if (typeof window.parent !== 'undefined') {
+      window.parent.postMessage({
+        type: 'game:complete',
+        gameId: GAME_ID,
+        score: score
+      }, '*');
+    }
+    
+    finalScoreDisplay.textContent = `Score: ${score}`;
+    
+    if (score >= 2000) {
+      resultMessage.textContent = '🏆 LEGENDARY STRONGMAN! 🏆';
+    } else if (score >= 1500) {
+      resultMessage.textContent = '💪 MIGHTY HAMMER MASTER! 💪';
+    } else if (score >= 1000) {
+      resultMessage.textContent = '⭐ STRONG PERFORMANCE! ⭐';
+    } else if (score >= 500) {
+      resultMessage.textContent = 'Good effort! Keep practicing!';
+    } else {
+      resultMessage.textContent = 'Nice try! Timing is everything!';
+    }
+    
+    gameScreen.style.display = 'none';
+    resultScreen.style.display = 'flex';
+  }
+  
+  function createParticles(x, y, color) {
+    for (let i = 0; i < 20; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      particle.style.left = x + 'px';
+      particle.style.top = y + 'px';
+      particle.style.background = color;
+      document.getElementById('game-container').appendChild(particle);
+      
+      const angle = Math.random() * Math.PI * 2;
+      const velocity = 2 + Math.random() * 4;
+      const vx = Math.cos(angle) * velocity;
+      const vy = Math.sin(angle) * velocity;
+      
+      let px = x;
+      let py = y;
+      let life = 30;
+      
+      const animateParticle = () => {
+        life--;
+        px += vx;
+        py += vy;
+        particle.style.left = px + 'px';
+        particle.style.top = py + 'px';
+        particle.style.opacity = life / 30;
+        
+        if (life > 0) {
+          requestAnimationFrame(animateParticle);
+        } else {
+          particle.remove();
+        }
+      };
+      
+      animateParticle();
+    }
+  }
+  
+  function gameLoop() {
+    if (!gameActive) return;
+    
+    ctx.save();
+    
+    if (screenShake > 0) {
+      ctx.translate(
+        (Math.random() - 0.5) * screenShake,
+        (Math.random() - 0.5) * screenShake
+      );
+      screenShake *= 0.9;
+      if (screenShake < 0.5) screenShake = 0;
+    }
+    
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    if (!hammerSwinging && !puckMoving) {
+      powerMeter += powerDirection * 0.02;
+      if (powerMeter >= 1) {
+        powerMeter = 1;
+        powerDirection = -1;
+      } else if (powerMeter <= 0) {
+        powerMeter = 0;
+        powerDirection = 1;
+      }
+    }
+    
+    drawTower();
+    drawPowerMeter();
+    drawBell();
+    drawPuck();
+    drawHammer();
+    
+    if (hammerSwinging) {
+      hammerY += 20;
+      if (hammerY >= 0) {
+        hammerY = 0;
+        hammerSwinging = false;
+      }
+    }
+    
+    if (puckMoving) {
+      puckY += (puckTargetY - puckY) * 0.15;
+      if (Math.abs(puckTargetY - puckY) < 1) {
+        setTimeout(() => {
+          puckY = 0;
+          puckMoving = false;
+          bellRinging = false;
+        }, 300);
+      }
+    }
+    
+    ctx.restore();
+    
+    requestAnimationFrame(gameLoop);
+  }
+  
+  function drawTower() {
+    ctx.fillStyle = '#3a1f5d';
+    ctx.fillRect(170, 380, 40, 80);
+    
+    ctx.fillStyle = '#2d1847';
+    ctx.fillRect(175, 380, 30, 80);
+    
+    for (let i = 0; i < 8; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#ff006e' : '#ffbe0b';
+      ctx.fillRect(165, 380 + i * 10, 50, 8);
+    }
+    
+    ctx.fillStyle = '#8338ec';
+    ctx.fillRect(160, 460, 60, 20);
+  }
+  
+  function drawBell() {
+    const bellX = 190;
+    const bellY = 150;
+    
+    if (bellRinging && Date.now() - bellRingTime < 500) {
+      const swing = Math.sin(Date.now() * 0.05) * 5;
+      ctx.save();
+      ctx.translate(bellX, bellY);
+      ctx.rotate(swing * Math.PI / 180);
+      ctx.translate(-bellX, -bellY);
+      
+      ctx.shadowColor = '#ffbe0b';
+      ctx.shadowBlur = 30;
+    }
+    
+    ctx.fillStyle = '#ffbe0b';
+    ctx.beginPath();
+    ctx.arc(bellX, bellY, 25, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ff006e';
+    ctx.beginPath();
+    ctx.arc(bellX, bellY, 18, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffbe0b';
+    ctx.beginPath();
+    ctx.arc(bellX, bellY, 8, 0, Math.PI * 2);
+    ctx.fill();
+    
+    if (bellRinging && Date.now() - bellRingTime < 500) {
+      ctx.restore();
+      
+      ctx.strokeStyle = '#ffbe0b';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(bellX, bellY, 30 + i * 15, 0, Math.PI * 2);
+        ctx.globalAlpha = 0.5 - i * 0.15;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    
+    ctx.fillStyle = '#3a1f5d';
+    ctx.fillRect(185, 175, 10, 205);
+  }
+  
+  function drawPuck() {
+    const puckX = 190;
+    const puckBaseY = 380;
+    
+    ctx.fillStyle = '#fb5607';
+    ctx.fillRect(puckX - 20, puckBaseY + puckY - 10, 40, 20);
+    
+    ctx.fillStyle = '#ff006e';
+    ctx.fillRect(puckX - 15, puckBaseY + puckY - 8, 30, 16);
+  }
+  
+  function drawPowerMeter() {
+    const meterX = 50;
+    const meterY = 200;
+    const meterWidth = 60;
+    const meterHeight = 200;
+    
+    ctx.fillStyle = '#2d1847';
+    ctx.fillRect(meterX, meterY, meterWidth, meterHeight);
+    
+    ctx.strokeStyle = '#8338ec';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(meterX, meterY, meterWidth, meterHeight);
+    
+    const fillHeight = meterHeight * powerMeter;
+    const gradient = ctx.createLinearGradient(0, meterY + meterHeight, 0, meterY);
+    
+    if (powerMeter < 0.3) {
+      gradient.addColorStop(0, '#00f5d4');
+      gradient.addColorStop(1, '#00f5d4');
+    } else if (powerMeter < 0.6) {
+      gradient.addColorStop(0, '#8338ec');
+      gradient.addColorStop(1, '#8338ec');
+    } else if (powerMeter < 0.9) {
+      gradient.addColorStop(0, '#fb5607');
+      gradient.addColorStop(1, '#fb5607');
+    } else {
+      gradient.addColorStop(0, '#ff006e');
+      gradient.addColorStop(1, '#ffbe0b');
+    }
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(meterX + 5, meterY + meterHeight - fillHeight, meterWidth - 10, fillHeight);
+    
+    ctx.fillStyle = '#ffbe0b';
+    ctx.font = 'bold 14px Impact';
+    ctx.textAlign = 'center';
+    ctx.fillText('POWER', meterX + meterWidth / 2, meterY - 10);
+    
+    for (let i = 0; i <= 10; i++) {
+      const y = meterY + meterHeight - (i * meterHeight / 10);
+      ctx.strokeStyle = '#8338ec';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(meterX, y);
+      ctx.lineTo(meterX + 10, y);
+      ctx.stroke();
+    }
+  }
+  
+  function drawHammer() {
+    const hammerX = 280;
+    const hammerBaseY = 300;
+    const hammerCurrentY = hammerBaseY + hammerY;
+    
+    ctx.fillStyle = '#8b4513';
+    ctx.fillRect(hammerX, hammerCurrentY, 15, 120);
+    
+    ctx.fillStyle = '#3a1f5d';
+    ctx.fillRect(hammerX - 15, hammerCurrentY, 45, 40);
+    
+    ctx.fillStyle = '#2d1847';
+    ctx.fillRect(hammerX - 10, hammerCurrentY + 5, 35, 30);
+    
+    ctx.strokeStyle = '#ff006e';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(hammerX - 15, hammerCurrentY, 45, 40);
+    
+    if (!hammerSwinging) {
+      ctx.fillStyle = '#00f5d4';
+      ctx.font = 'bold 12px Impact';
+      ctx.textAlign = 'center';
+      ctx.fillText('CLICK!', hammerX + 7, hammerCurrentY + 140);
+    }
+  }
+  
+  init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fortune Teller Crystal Ball</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    width: 380px;
+    height: 500px;
+    background: #1a0a2e;
+    font-family: 'Georgia', serif;
+    color: #00f5d4;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  #game-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  
+  #title {
+    font-size: 26px;
+    text-align: center;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px #8338ec, 0 0 20px #8338ec;
+    font-style: italic;
+  }
+  
+  #subtitle {
+    font-size: 12px;
+    text-align: center;
+    margin-bottom: 20px;
+    color: #ffbe0b;
+    opacity: 0.8;
+  }
+  
+  #crystal-ball {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.3), transparent 50%),
+                radial-gradient(circle, #8338ec, #1a0a2e);
+    box-shadow: 0 0 30px #8338ec, inset 0 0 40px rgba(131, 56, 236, 0.5);
+    position: relative;
+    margin-bottom: 20px;
+    transition: all 0.5s ease;
+  }
+  
+  #crystal-ball.glow-correct {
+    box-shadow: 0 0 50px #00f5d4, inset 0 0 60px rgba(0, 245, 212, 0.7);
+    animation: pulse-correct 0.5s ease;
+  }
+  
+  #crystal-ball.glow-wrong {
+    box-shadow: 0 0 50px #ff006e, inset 0 0 60px rgba(255, 0, 110, 0.7);
+    animation: shake 0.5s ease;
+  }
+  
+  #crystal-ball.glow-perfect {
+    box-shadow: 0 0 60px #ffbe0b, inset 0 0 80px rgba(255, 190, 11, 0.9);
+    animation: pulse-perfect 1s ease;
+  }
+  
+  @keyframes pulse-correct {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  
+  @keyframes pulse-perfect {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    25% { transform: scale(1.15) rotate(5deg); }
+    75% { transform: scale(1.15) rotate(-5deg); }
+  }
+  
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+  }
+  
+  #ball-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 32px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 0 10px currentColor;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  #crystal-ball.active #ball-text {
+    opacity: 1;
+  }
+  
+  #question-area {
+    width: 90%;
+    text-align: center;
+    margin-bottom: 15px;
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  
+  #question {
+    font-size: 16px;
+    color: #00f5d4;
+    margin-bottom: 10px;
+    text-shadow: 0 0 5px #00f5d4;
+  }
+  
+  #answers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  .answer-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #8338ec, #ff006e);
+    border: 2px solid #00f5d4;
+    color: #fff;
+    font-size: 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 10px rgba(131, 56, 236, 0.5);
+    font-weight: bold;
+  }
+  
+  .answer-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(131, 56, 236, 0.8);
+  }
+  
+  .answer-btn:active {
+    transform: scale(0.95);
+  }
+  
+  #play-btn {
+    padding: 15px 40px;
+    background: linear-gradient(135deg, #ff006e, #ffbe0b);
+    border: 3px solid #00f5d4;
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 20px rgba(255, 0, 110, 0.6);
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  }
+  
+  #play-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 30px rgba(255, 0, 110, 0.9);
+  }
+  
+  #score-area {
+    display: flex;
+    justify-content: space-around;
+    width: 90%;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #ffbe0b;
+  }
+  
+  #streak-indicator {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+  }
+  
+  .streak-dot {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #1a0a2e;
+    border: 2px solid #8338ec;
+    transition: all 0.3s ease;
+  }
+  
+  .streak-dot.active {
+    background: #00f5d4;
+    box-shadow: 0 0 10px #00f5d4;
+  }
+  
+  .particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  
+  #game-over {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(26, 10, 46, 0.95);
+    border: 3px solid #ffbe0b;
+    border-radius: 20px;
+    padding: 30px;
+    text-align: center;
+    box-shadow: 0 0 40px rgba(255, 190, 11, 0.8);
+    display: none;
+  }
+  
+  #game-over.show {
+    display: block;
+    animation: fadeIn 0.5s ease;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  
+  #final-score {
+    font-size: 48px;
+    color: #ffbe0b;
+    text-shadow: 0 0 20px #ffbe0b;
+    margin-bottom: 10px;
+  }
+  
+  #game-over-text {
+    font-size: 18px;
+    color: #00f5d4;
+    margin-bottom: 20px;
+  }
+  
+  .hidden {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="title">Fortune Teller</div>
+  <div id="subtitle">Gaze into the mystical crystal ball...</div>
+  
+  <div id="crystal-ball">
+    <div id="ball-text">?</div>
+  </div>
+  
+  <div id="question-area">
+    <div id="question"></div>
+  </div>
+  
+  <div id="answers"></div>
+  
+  <button id="play-btn">Play!</button>
+  
+  <div id="score-area" class="hidden">
+    <div>Score: <span id="score">0</span></div>
+    <div>Time: <span id="timer">30</span>s</div>
+  </div>
+  
+  <div id="streak-indicator" class="hidden">
+    <div class="streak-dot"></div>
+    <div class="streak-dot"></div>
+    <div class="streak-dot"></div>
+  </div>
+  
+  <div id="game-over">
+    <div id="final-score">0</div>
+    <div id="game-over-text">The spirits have spoken!</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  const GAME_ID = 'fortune-teller-crystal-ball-17';
+  const GAME_DURATION = 30;
+  
+  const questions = [
+    { q: "What is the largest planet?", a: ["Jupiter", "Saturn", "Earth", "Mars"], c: 0 },
+    { q: "How many continents are there?", a: ["5", "6", "7", "8"], c: 2 },
+    { q: "What is H2O?", a: ["Water", "Air", "Fire", "Earth"], c: 0 },
+    { q: "How many sides does a hexagon have?", a: ["5", "6", "7", "8"], c: 1 },
+    { q: "What color do you get mixing blue and yellow?", a: ["Green", "Purple", "Orange", "Red"], c: 0 },
+    { q: "How many legs does a spider have?", a: ["6", "8", "10", "12"], c: 1 },
+    { q: "What is the capital of France?", a: ["London", "Berlin", "Paris", "Rome"], c: 2 },
+    { q: "How many days in a leap year?", a: ["365", "366", "364", "367"], c: 1 },
+    { q: "What is the fastest land animal?", a: ["Lion", "Cheetah", "Horse", "Falcon"], c: 1 },
+    { q: "How many planets in our solar system?", a: ["7", "8", "9", "10"], c: 1 },
+    { q: "What is the smallest prime number?", a: ["0", "1", "2", "3"], c: 2 },
+    { q: "How many colors in a rainbow?", a: ["5", "6", "7", "8"], c: 2 },
+    { q: "What is the freezing point of water (°C)?", a: ["0", "32", "100", "-10"], c: 0 },
+    { q: "How many strings on a guitar?", a: ["4", "5", "6", "7"], c: 2 },
+    { q: "What year did World War II end?", a: ["1943", "1944", "1945", "1946"], c: 2 }
+  ];
+  
+  let score = 0;
+  let streak = 0;
+  let timeLeft = GAME_DURATION;
+  let currentQuestion = null;
+  let gameActive = false;
+  let timerInterval = null;
+  let usedQuestions = [];
+  
+  const playBtn = document.getElementById('play-btn');
+  const crystalBall = document.getElementById('crystal-ball');
+  const ballText = document.getElementById('ball-text');
+  const questionEl = document.getElementById('question');
+  const answersEl = document.getElementById('answers');
+  const scoreEl = document.getElementById('score');
+  const timerEl = document.getElementById('timer');
+  const scoreArea = document.getElementById('score-area');
+  const streakIndicator = document.getElementById('streak-indicator');
+  const gameOverEl = document.getElementById('game-over');
+  const finalScoreEl = document.getElementById('final-score');
+  const gameOverText = document.getElementById('game-over-text');
+  
+  function postMessage(type, data) {
+    window.parent.postMessage({ type, gameId: GAME_ID, ...data }, '*');
+  }
+  
+  function startGame() {
+    score = 0;
+    streak = 0;
+    timeLeft = GAME_DURATION;
+    gameActive = true;
+    usedQuestions = [];
+    
+    scoreEl.textContent = score;
+    timerEl.textContent = timeLeft;
+    
+    playBtn.classList.add('hidden');
+    scoreArea.classList.remove('hidden');
+    streakIndicator.classList.remove('hidden');
+    gameOverEl.classList.remove('show');
+    
+    updateStreakIndicator();
+    loadQuestion();
+    
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      timerEl.textContent = timeLeft;
+      
+      if (timeLeft <= 0) {
+        endGame();
+      }
+    }, 1000);
+    
+    postMessage('game:score', { score: 0 });
+  }
+  
+  function loadQuestion() {
+    if (!gameActive) return;
+    
+    crystalBall.classList.remove('glow-correct', 'glow-wrong', 'glow-perfect', 'active');
+    answersEl.innerHTML = '';
+    
+    let availableQuestions = questions.filter((q, idx) => !usedQuestions.includes(idx));
+    if (availableQuestions.length === 0) {
+      usedQuestions = [];
+      availableQuestions = questions;
+    }
+    
+    const randomIdx = Math.floor(Math.random() * availableQuestions.length);
+    currentQuestion = availableQuestions[randomIdx];
+    usedQuestions.push(questions.indexOf(currentQuestion));
+    
+    questionEl.textContent = currentQuestion.q;
+    
+    currentQuestion.a.forEach((answer, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'answer-btn';
+      btn.textContent = answer;
+      btn.onclick = () => checkAnswer(idx);
+      answersEl.appendChild(btn);
+    });
+    
+    setTimeout(() => {
+      crystalBall.classList.add('active');
+      ballText.textContent = '?';
+    }, 100);
+  }
+  
+  function checkAnswer(selectedIdx) {
+    if (!gameActive) return;
+    
+    const buttons = answersEl.querySelectorAll('.answer-btn');
+    buttons.forEach(btn => btn.disabled = true);
+    
+    const correct = selectedIdx === currentQuestion.c;
+    
+    if (correct) {
+      score += 10;
+      streak++;
+      
+      if (streak >= 3) {
+        score += 20; // Bonus for perfect reading!
+        crystalBall.classList.add('glow-perfect');
+        ballText.textContent = '★';
+        createParticles('#ffbe0b');
+        setTimeout(() => {
+          streak = 0;
+          updateStreakIndicator();
+        }, 1000);
+      } else {
+        crystalBall.classList.add('glow-correct');
+        ballText.textContent = '✓';
+        createParticles('#00f5d4');
+      }
+      
+      scoreEl.textContent = score;
+      postMessage('game:score', { score });
+      updateStreakIndicator();
+      
+    } else {
+      streak = 0;
+      crystalBall.classList.add('glow-wrong');
+      ballText.textContent = '✗';
+      updateStreakIndicator();
+      createParticles('#ff006e');
+    }
+    
+    setTimeout(() => {
+      if (gameActive) {
+        loadQuestion();
+      }
+    }, 1500);
+  }
+  
+  function updateStreakIndicator() {
+    const dots = streakIndicator.querySelectorAll('.streak-dot');
+    dots.forEach((dot, idx) => {
+      if (idx < streak) {
+        dot.classList.add('active');
+      } else {
+        dot.classList.remove('active');
+      }
+    });
+  }
+  
+  function createParticles(color) {
+    const ballRect = crystalBall.getBoundingClientRect();
+    const centerX = ballRect.left + ballRect.width / 2;
+    const centerY = ballRect.top + ballRect.height / 2;
+    
+    for (let i = 0; i < 20; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      particle.style.background = color;
+      particle.style.left = centerX + 'px';
+      particle.style.top = centerY + 'px';
+      document.body.appendChild(particle);
+      
+      const angle = (Math.PI * 2 * i) / 20;
+      const velocity = 2 + Math.random() * 3;
+      const vx = Math.cos(angle) * velocity;
+      const vy = Math.sin(angle) * velocity;
+      
+      let posX = 0;
+      let posY = 0;
+      let opacity = 1;
+      
+      const animate = () => {
+        posX += vx;
+        posY += vy;
+        opacity -= 0.02;
+        
+        particle.style.transform = `translate(${posX}px, ${posY}px)`;
+        particle.style.opacity = opacity;
+        
+        if (opacity > 0) {
+          requestAnimationFrame(animate);
+        } else {
+          particle.remove();
+        }
+      };
+      
+      animate();
+    }
+  }
+  
+  function endGame() {
+    gameActive = false;
+    clearInterval(timerInterval);
+    
+    answersEl.innerHTML = '';
+    questionEl.textContent = '';
+    crystalBall.classList.remove('active', 'glow-correct', 'glow-wrong', 'glow-perfect');
+    
+    finalScoreEl.textContent = score;
+    
+    if (score >= 100) {
+      gameOverText.textContent = "Master of Mystical Knowledge!";
+    } else if (score >= 60) {
+      gameOverText.textContent = "The spirits are pleased!";
+    } else if (score >= 30) {
+      gameOverText.textContent = "A decent reading!";
+    } else {
+      gameOverText.textContent = "The crystal remains cloudy...";
+    }
+    
+    gameOverEl.classList.add('show');
+    playBtn.classList.remove('hidden');
+    playBtn.textContent = "Play Again!";
+    scoreArea.classList.add('hidden');
+    streakIndicator.classList.add('hidden');
+    
+    postMessage('game:complete', { score });
+  }
+  
+  playBtn.addEventListener('click', startGame);
+  
+})();
+</script>
+</body>
+</html>

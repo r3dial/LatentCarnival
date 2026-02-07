@@ -79,5 +79,14 @@
     "issue": 20,
     "date": "2026-02-07",
     "author": "claude"
+  },
+  {
+    "id": "fortune-teller-crystal-ball-17",
+    "name": "Mystic Mind Reader",
+    "description": "Prove your wisdom! Crystal glows hot or cold—3 right wins!",
+    "file": "fortune-teller-crystal-ball-17.html",
+    "issue": 17,
+    "date": "2026-02-07",
+    "author": "claude"
   }
 ]

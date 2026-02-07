@@ -145,6 +145,18 @@ jobs:
           if [ -z "$GAME_NAME" ]; then GAME_NAME="Mystery Game"; fi
           if [ -z "$GAME_DESC" ]; then GAME_DESC="Step right up and try your luck!"; fi
 
+          echo "GAME_NAME=${GAME_NAME}" >> "$GITHUB_ENV"
+          echo "GAME_DESC=${GAME_DESC}" >> "$GITHUB_ENV"
+
+      - name: Commit and push
+        if: env.SKIP != 'true'
+        run: |
+          git config user.name "Carnival Barker Bot"
+          git config user.email "barker-bot@latentcarnival.dev"
+
+          git fetch origin main
+          git checkout origin/main -- games.json
+
           TODAY=$(date +%Y-%m-%d)
           jq --arg id "$SLUG" \
              --arg name "$GAME_NAME" \
@@ -155,15 +167,9 @@ jobs:
              '. += [{id: $id, name: $name, description: $desc, file: $file, issue: $issue, date: $date, author: "claude"}]' \
              games.json > games.json.tmp && mv games.json.tmp games.json
 
-      - name: Commit and push
-        if: env.SKIP != 'true'
-        run: |
-          git config user.name "Carnival Barker Bot"
-          git config user.email "barker-bot@latentcarnival.dev"
           git add "games/${SLUG}.html" games.json
           COMMIT_MSG=$(printf '🎪 New attraction: %s\n\nGenerated from issue #%s' "$SLUG" "$ISSUE_NUMBER")
           git commit -m "$COMMIT_MSG"
-          git pull --rebase
           git push
 
       - name: Update status and close

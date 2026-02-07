@@ -61,5 +61,14 @@
     "issue": 15,
     "date": "2026-02-06",
     "author": "claude"
+  },
+  {
+    "id": "bowling-16",
+    "name": "Strike Zone Showdown",
+    "description": "Roll three balls, knock down pins, win big prizes!",
+    "file": "bowling-16.html",
+    "issue": 16,
+    "date": "2026-02-07",
+    "author": "claude"
   }
 ]

@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neon Bowl</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a0a2e;
+  font-family: 'Arial Black', sans-serif;
+  overflow: hidden;
+  width: 380px;
+  height: 500px;
+  position: relative;
+}
+
+#game-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+#canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#ui {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+#score-display {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffbe0b;
+  font-size: 24px;
+  text-shadow: 0 0 10px #ffbe0b, 0 0 20px #ffbe0b;
+  pointer-events: none;
+}
+
+#timer {
+  position: absolute;
+  top: 45px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #00f5d4;
+  font-size: 18px;
+  text-shadow: 0 0 10px #00f5d4;
+}
+
+#start-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(26, 10, 46, 0.95);
+  pointer-events: all;
+}
+
+#title {
+  font-size: 48px;
+  color: #ff006e;
+  text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+  margin-bottom: 20px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+#play-btn {
+  padding: 15px 40px;
+  font-size: 28px;
+  font-weight: bold;
+  color: #1a0a2e;
+  background: linear-gradient(135deg, #ffbe0b, #fb5607);
+  border: 3px solid #ffbe0b;
+  border-radius: 50px;
+  cursor: pointer;
+  pointer-events: all;
+  text-shadow: none;
+  box-shadow: 0 0 20px #ffbe0b, 0 0 40px #fb5607;
+  transition: transform 0.1s;
+}
+
+#play-btn:hover {
+  transform: scale(1.1);
+}
+
+#play-btn:active {
+  transform: scale(0.95);
+}
+
+#instructions {
+  color: #00f5d4;
+  font-size: 14px;
+  margin-top: 20px;
+  text-align: center;
+  text-shadow: 0 0 10px #00f5d4;
+}
+
+#game-over {
+  display: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(26, 10, 46, 0.95);
+  padding: 30px;
+  border-radius: 20px;
+  border: 3px solid #8338ec;
+  text-align: center;
+  box-shadow: 0 0 30px #8338ec;
+  pointer-events: all;
+}
+
+#final-score {
+  font-size: 36px;
+  color: #ff006e;
+  text-shadow: 0 0 20px #ff006e;
+  margin-bottom: 10px;
+}
+
+#power-bar {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  height: 30px;
+  border: 3px solid #00f5d4;
+  border-radius: 15px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+}
+
+#power-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #00f5d4, #8338ec);
+  box-shadow: 0 0 20px #00f5d4;
+  transition: width 0.05s linear;
+}
+
+.particle {
+  position: absolute;
+  pointer-events: none;
+  animation: particle-float 1s ease-out forwards;
+}
+
+@keyframes particle-float {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) scale(0);
+  }
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="canvas"></canvas>
+  <div id="ui">
+    <div id="score-display">SCORE: 0</div>
+    <div id="timer">TIME: 60</div>
+    <div id="power-bar">
+      <div id="power-fill"></div>
+    </div>
+    <div id="start-screen">
+      <div id="title">NEON BOWL</div>
+      <button id="play-btn">PLAY!</button>
+      <div id="instructions">Click to aim & set power<br>Knock down all pins!</div>
+    </div>
+    <div id="game-over">
+      <div id="final-score"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const scoreDisplay = document.getElementById('score-display');
+  const timerDisplay = document.getElementById('timer');
+  const startScreen = document.getElementById('start-screen');
+  const playBtn = document.getElementById('play-btn');
+  const gameOverScreen = document.getElementById('game-over');
+  const finalScoreDisplay = document.getElementById('final-score');
+  const powerBar = document.getElementById('power-bar');
+  const powerFill = document.getElementById('power-fill');
+
+  canvas.width = 380;
+  canvas.height = 500;
+
+  let score = 0;
+  let timeLeft = 60;
+  let gameActive = false;
+  let gameStarted = false;
+  let ballThrown = false;
+  let powerCharging = false;
+  let power = 0;
+  let powerDirection = 1;
+  let shake = 0;
+
+  const ball = {
+    x: canvas.width / 2,
+    y: canvas.height - 80,
+    vx: 0,
+    vy: 0,
+    radius: 12,
+    active: false
+  };
+
+  const pins = [];
+  const particles = [];
+
+  function createPins() {
+    pins.length = 0;
+    const startX = canvas.width / 2;
+    const startY = 120;
+    const spacing = 28;
+    
+    // 4 rows of pins (10 total)
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col <= row; col++) {
+        pins.push({
+          x: startX + (col - row / 2) * spacing,
+          y: startY + row * spacing * 0.9,
+          width: 10,
+          height: 24,
+          hit: false,
+          vx: 0,
+          vy: 0,
+          rotation: 0,
+          vr: 0
+        });
+      }
+    }
+  }
+
+  function resetBall() {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height - 80;
+    ball.vx = 0;
+    ball.vy = 0;
+    ball.active = false;
+    ballThrown = false;
+  }
+
+  function drawLane() {
+    // Lane with perspective
+    ctx.fillStyle = '#2a1a4e';
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 80, 80);
+    ctx.lineTo(canvas.width / 2 + 80, 80);
+    ctx.lineTo(canvas.width / 2 + 120, canvas.height);
+    ctx.lineTo(canvas.width / 2 - 120, canvas.height);
+    ctx.closePath();
+    ctx.fill();
+
+    // Lane lines
+    ctx.strokeStyle = '#8338ec';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([10, 10]);
+    for (let i = 0; i < 5; i++) {
+      const y = 80 + (canvas.height - 80) * (i / 4);
+      const spread = 80 + 40 * (i / 4);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width / 2 - spread, y);
+      ctx.lineTo(canvas.width / 2 + spread, y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // Gutter glow
+    ctx.strokeStyle = '#ff006e';
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#ff006e';
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 80, 80);
+    ctx.lineTo(canvas.width / 2 - 120, canvas.height);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 + 80, 80);
+    ctx.lineTo(canvas.width / 2 + 120, canvas.height);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  function drawBall() {
+    ctx.save();
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = '#00f5d4';
+    ctx.fillStyle = '#00f5d4';
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Ball holes
+    ctx.fillStyle = '#1a0a2e';
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(ball.x - 4, ball.y - 2, 2, 0, Math.PI * 2);
+    ctx.arc(ball.x + 4, ball.y - 2, 2, 0, Math.PI * 2);
+    ctx.arc(ball.x, ball.y + 4, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPin(pin) {
+    if (pin.hit) return;
+
+    ctx.save();
+    ctx.translate(pin.x, pin.y);
+    ctx.rotate(pin.rotation);
+    
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#ffbe0b';
+    
+    // Pin body
+    ctx.fillStyle = '#ffbe0b';
+    ctx.beginPath();
+    ctx.moveTo(-pin.width / 2, pin.height / 2);
+    ctx.lineTo(-pin.width / 3, -pin.height / 2);
+    ctx.lineTo(pin.width / 3, -pin.height / 2);
+    ctx.lineTo(pin.width / 2, pin.height / 2);
+    ctx.closePath();
+    ctx.fill();
+
+    // Pin stripe
+    ctx.fillStyle = '#fb5607';
+    ctx.fillRect(-pin.width / 2, 0, pin.width, 4);
+    
+    ctx.restore();
+  }
+
+  function drawAimLine() {
+    if (!ballThrown && !ball.active) {
+      const mouseY = canvas.height / 2;
+      ctx.strokeStyle = 'rgba(0, 245, 212, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(ball.x, ball.y);
+      ctx.lineTo(ball.x, mouseY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function createParticles(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: x,
+        y: y,
+        vx: (Math.random() - 0.5) * 6,
+        vy: (Math.random() - 0.5) * 6,
+        life: 1,
+        color: color,
+        size: Math.random() * 4 + 2
+      });
+    }
+  }
+
+  function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= 0.02;
+      
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+      }
+    }
+  }
+
+  function drawParticles() {
+    particles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  function checkCollision() {
+    pins.forEach(pin => {
+      if (pin.hit) return;
+
+      const dx = ball.x - pin.x;
+      const dy = ball.y - pin.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < ball.radius + pin.width / 2) {
+        pin.hit = true;
+        score += 10;
+        updateScore();
+        createParticles(pin.x, pin.y, '#ffbe0b', 12);
+        shake = 8;
+
+        // Scatter effect
+        const angle = Math.atan2(dy, dx);
+        ball.vx = Math.cos(angle) * 3;
+        ball.vy = Math.sin(angle) * 3;
+      }
+    });
+  }
+
+  function updateBall() {
+    if (!ball.active) return;
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    ball.vy *= 0.98; // Friction
+    ball.vx *= 0.98;
+
+    // Check boundaries
+    if (ball.y < 50 || ball.y > canvas.height + 50 || 
+        Math.abs(ball.vx) < 0.1 && Math.abs(ball.vy) < 0.1) {
+      setTimeout(() => {
+        if (pins.every(p => p.hit)) {
+          createPins();
+          score += 50;
+          updateScore();
+        }
+        resetBall();
+      }, 500);
+    }
+
+    checkCollision();
+  }
+
+  function updatePower() {
+    if (!powerCharging) return;
+
+    power += 2 * powerDirection;
+    if (power >= 100) {
+      power = 100;
+      powerDirection = -1;
+    } else if (power <= 0) {
+      power = 0;
+      powerDirection = 1;
+    }
+
+    powerFill.style.width = power + '%';
+  }
+
+  function throwBall() {
+    if (ballThrown || ball.active) return;
+
+    const speed = 5 + (power / 100) * 10;
+    ball.vy = -speed;
+    ball.active = true;
+    ballThrown = true;
+    powerCharging = false;
+    powerBar.style.display = 'none';
+  }
+
+  function updateScore() {
+    scoreDisplay.textContent = `SCORE: ${score}`;
+    window.parent.postMessage({
+      type: 'game:score',
+      gameId: 'bowling-16',
+      score: score
+    }, '*');
+  }
+
+  function updateTimer() {
+    if (!gameActive) return;
+    
+    timeLeft--;
+    timerDisplay.textContent = `TIME: ${timeLeft}`;
+    
+    if (timeLeft <= 0) {
+      endGame();
+    }
+  }
+
+  function endGame() {
+    gameActive = false;
+    gameOverScreen.style.display = 'block';
+    finalScoreDisplay.textContent = `SCORE: ${score}`;
+    
+    window.parent.postMessage({
+      type: 'game:complete',
+      gameId: 'bowling-16',
+      score: score
+    }, '*');
+  }
+
+  function startGame() {
+    gameStarted = true;
+    gameActive = true;
+    score = 0;
+    timeLeft = 60;
+    startScreen.style.display = 'none';
+    gameOverScreen.style.display = 'none';
+    createPins();
+    resetBall();
+    updateScore();
+    
+    const timerInterval = setInterval(() => {
+      if (!gameActive) {
+        clearInterval(timerInterval);
+      } else {
+        updateTimer();
+      }
+    }, 1000);
+  }
+
+  function gameLoop() {
+    ctx.save();
+    
+    // Screen shake
+    if (shake > 0) {
+      ctx.translate(
+        (Math.random() - 0.5) * shake,
+        (Math.random() - 0.5) * shake
+      );
+      shake *= 0.8;
+    }
+
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (gameStarted) {
+      drawLane();
+      pins.forEach(drawPin);
+      drawBall();
+      drawAimLine();
+      drawParticles();
+      updateBall();
+      updateParticles();
+      updatePower();
+    }
+
+    ctx.restore();
+    requestAnimationFrame(gameLoop);
+  }
+
+  canvas.addEventListener('click', (e) => {
+    if (!gameActive) return;
+
+    if (!ballThrown && !ball.active) {
+      if (!powerCharging) {
+        powerCharging = true;
+        powerBar.style.display = 'block';
+        power = 0;
+        powerDirection = 1;
+      } else {
+        throwBall();
+      }
+    }
+  });
+
+  playBtn.addEventListener('click', startGame);
+
+  gameLoop();
+})();
+</script>
+</body>
+</html>

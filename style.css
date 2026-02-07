@@ -12,7 +12,7 @@
   --wood: #5c3a1e;
   --wood-light: #8b5e3c;
   --booth-width: 420px;
-  --booth-height: 580px;
+  --booth-height: 650px;
   --iframe-width: 380px;
   --iframe-height: 500px;
 }
@@ -57,7 +57,7 @@ body {
   position: relative;
   z-index: 10;
   text-align: center;
-  padding: 15px 20px 10px;
+  padding: 8px 20px 4px;
   flex-shrink: 0;
   opacity: 0;
   transform: translateY(-30px);
@@ -69,7 +69,7 @@ body {
 }
 
 .neon-title {
-  font-size: clamp(2rem, 6vw, 4.5rem);
+  font-size: clamp(1.8rem, 5vw, 3.2rem);
   font-weight: 900;
   letter-spacing: 0.15em;
   color: var(--yellow);
@@ -99,8 +99,8 @@ body {
 }
 
 .subtitle {
-  margin-top: 8px;
-  font-size: clamp(0.8rem, 2vw, 1.1rem);
+  margin-top: 4px;
+  font-size: clamp(0.75rem, 1.5vw, 0.95rem);
   color: var(--cyan);
   text-shadow: 0 0 10px var(--cyan);
   letter-spacing: 0.2em;
@@ -111,7 +111,7 @@ body {
   display: flex;
   justify-content: center;
   gap: 18px;
-  padding: 8px 0;
+  padding: 3px 0;
 }
 
 .arch-lights::before,
@@ -172,7 +172,7 @@ body {
   overflow-y: hidden;
   flex: 1;
   min-height: 0;
-  padding: 10px 60px 0;
+  padding: 5px 60px 0;
   opacity: 0;
   animation: fadeIn 0.8s ease-out 0.8s forwards;
   scrollbar-width: none;
@@ -228,7 +228,7 @@ body {
 /* Awning */
 .booth-awning {
   width: calc(var(--booth-width) + 20px);
-  height: 45px;
+  height: 36px;
   background: repeating-linear-gradient(
     90deg,
     var(--pink) 0px,
@@ -285,7 +285,7 @@ body {
 /* Sign */
 .booth-sign {
   width: var(--booth-width);
-  padding: 8px 10px;
+  padding: 4px 10px;
   background: var(--booth-bg);
   text-align: center;
   border-left: 3px solid var(--wood);
@@ -368,8 +368,8 @@ body {
 
 /* Iframe */
 .booth-frame iframe {
-  width: calc(100% - 8px);
-  height: calc(100% - 8px);
+  width: 100%;
+  height: 100%;
   border: none;
   border-radius: 2px;
 }

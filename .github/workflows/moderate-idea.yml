@@ -10,7 +10,6 @@ jobs:
     if: "!contains(github.event.issue.labels.*.name, 'skip-agent')"
     permissions:
       issues: write
-      actions: write
 
     steps:
       - name: Moderate game idea
@@ -55,7 +54,7 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Handle approved idea
+      - name: Handle safe idea
         if: steps.check.outputs.approved == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -64,23 +63,17 @@ jobs:
           set -euo pipefail
           REPO="${GITHUB_REPOSITORY}"
 
-          QUEUE=$(gh api "repos/${REPO}/actions/workflows/generate-game.yml/runs?status=queued&status=in_progress" \
-            --jq '.total_count // 0' 2>/dev/null || echo "0")
-          POS=$((QUEUE + 1))
-
-          COMMENT_BODY=$(printf '%s\n%s\n\n%s\n\n%s' \
+          COMMENT_BODY=$(printf '%s\n%s\n%s\n\n%s\n\n%s' \
             '<!-- carnival-status -->' \
-            '🎟️ **Your game idea passed inspection!**' \
-            "Queue position: **#${POS}** — The carnival crew is on it!" \
+            '<!-- skip-count: 0 -->' \
+            '🎟️ **Your game idea is in the running!**' \
+            'The Carnival Talent Scout reviews ideas every 20 minutes and picks the most interesting ones to build. Stay tuned!' \
             '*— Carnival Barker Bot* 🤖')
 
           gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$COMMENT_BODY"
 
-          gh label create approved -R "$REPO" --description "Game idea approved" --color "0e8a16" 2>/dev/null || true
-          gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label approved
-
-          gh workflow run generate-game.yml -R "$REPO" -f issue_number="$ISSUE_NUMBER"
-          echo "Dispatched generate-game.yml for issue #${ISSUE_NUMBER}"
+          gh label create candidate -R "$REPO" --description "Safe idea awaiting curation" --color "0075ca" 2>/dev/null || true
+          gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label candidate
 
       - name: Handle rejected idea
         if: steps.check.outputs.approved == 'false'

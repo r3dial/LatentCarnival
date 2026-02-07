@@ -1,0 +1,190 @@
+name: Curate Game Ideas
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: curation
+  cancel-in-progress: true
+
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: write
+
+    steps:
+      - name: Gather candidates
+        id: gather
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+
+          CANDIDATES=$(gh api "repos/${REPO}/issues?labels=candidate&state=open&per_page=100" \
+            --jq '[.[] | {number: .number, title: .title, body: (.body // "No details" | .[0:200])}]')
+
+          COUNT=$(echo "$CANDIDATES" | jq 'length')
+          echo "Found $COUNT candidate(s)"
+
+          if [ "$COUNT" -eq 0 ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          {
+            echo 'candidates<<CAND_DELIM'
+            echo "$CANDIDATES"
+            echo 'CAND_DELIM'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Pick top ideas
+        if: steps.gather.outputs.skip != 'true'
+        id: pick
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CANDIDATES: ${{ steps.gather.outputs.candidates }}
+        run: |
+          set -euo pipefail
+
+          ESCAPED_CANDIDATES=$(echo "$CANDIDATES" | jq -Rs .)
+
+          PICK_REQUEST=$(jq -n \
+            --arg model "claude-sonnet-4-5-20250929" \
+            --argjson candidates "$ESCAPED_CANDIDATES" \
+            '{model: $model, max_tokens: 300, system: "You are the Carnival Talent Scout. You review game ideas and pick the most interesting ones to build as carnival mini-games. Given a list of candidate game ideas (as JSON), pick UP TO 3 that are the most creative, novel, and would make the most fun quick browser games. Consider variety — avoid picking ideas that are too similar to each other. If there are 3 or fewer candidates, you may pick all of them if they are all good. Return ONLY a JSON object: {\"selected\": [list of issue numbers you picked], \"reasoning\": \"brief one-line note about why these stood out\"}. No markdown, just JSON.", messages: [{role: "user", content: ("Here are the candidate game ideas:\n" + $candidates)}]}')
+
+          echo "Calling Claude API for curation..."
+          PICK_RESPONSE=$(curl -s -X POST https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -d "$PICK_REQUEST")
+
+          PICK_TEXT=$(echo "$PICK_RESPONSE" | jq -r '.content[0].text // empty')
+          echo "Curation response: $PICK_TEXT"
+
+          PICK_JSON=$(echo "$PICK_TEXT" | sed '/^```/d' | tr -d '\n')
+          SELECTED=$(echo "$PICK_JSON" | jq -r '.selected // [] | map(tostring) | join(",")' 2>/dev/null || true)
+          REASONING=$(echo "$PICK_JSON" | jq -r '.reasoning // "Selected the most interesting ideas"' 2>/dev/null || true)
+
+          echo "Selected issues: $SELECTED"
+          echo "Reasoning: $REASONING"
+          echo "selected=$SELECTED" >> "$GITHUB_OUTPUT"
+
+      - name: Process selected and skipped
+        if: steps.gather.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATES: ${{ steps.gather.outputs.candidates }}
+          SELECTED: ${{ steps.pick.outputs.selected }}
+        run: |
+          set -euo pipefail
+          REPO="${GITHUB_REPOSITORY}"
+
+          gh label create selected -R "$REPO" --description "Picked by Talent Scout" --color "5319e7" 2>/dev/null || true
+          gh label create candidate -R "$REPO" --description "Safe idea awaiting curation" --color "0075ca" 2>/dev/null || true
+          gh label create expired -R "$REPO" --description "Not selected after 5 rounds" --color "d4c5f9" 2>/dev/null || true
+
+          IFS=',' read -ra SELECTED_ARR <<< "$SELECTED"
+
+          ALL_NUMBERS=$(echo "$CANDIDATES" | jq -r '.[].number')
+
+          for ISSUE_NUMBER in $ALL_NUMBERS; do
+            IS_SELECTED=false
+            for SEL in "${SELECTED_ARR[@]}"; do
+              if [ "$SEL" = "$ISSUE_NUMBER" ]; then
+                IS_SELECTED=true
+                break
+              fi
+            done
+
+            COMMENT_ID=$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" \
+              --jq '[.[] | select(.body | contains("<!-- carnival-status -->"))] | last | .id // empty')
+
+            if [ "$IS_SELECTED" = "true" ]; then
+              echo "=== Issue #${ISSUE_NUMBER}: SELECTED ==="
+
+              BODY=$(printf '%s\n%s\n\n%s\n\n%s' \
+                '<!-- carnival-status -->' \
+                '🎯 **The Carnival Talent Scout picked YOUR idea!**' \
+                'Your game is being sent to the builders right now. Stay tuned for the grand opening!' \
+                '*— Carnival Barker Bot* 🤖')
+
+              if [ -n "$COMMENT_ID" ]; then
+                gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
+                  -X PATCH -f body="$BODY"
+              else
+                gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$BODY"
+              fi
+
+              gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label selected --remove-label candidate
+
+              gh workflow run generate-game.yml -R "$REPO" -f issue_number="$ISSUE_NUMBER"
+              echo "Dispatched generate for issue #${ISSUE_NUMBER}"
+
+            else
+              echo "=== Issue #${ISSUE_NUMBER}: NOT SELECTED ==="
+
+              SKIP_COUNT=0
+              if [ -n "$COMMENT_ID" ]; then
+                EXISTING_BODY=$(gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" --jq '.body')
+                SKIP_COUNT=$(echo "$EXISTING_BODY" | grep -oP '<!-- skip-count: \K[0-9]+' || echo "0")
+              fi
+
+              SKIP_COUNT=$((SKIP_COUNT + 1))
+              echo "Skip count for #${ISSUE_NUMBER}: $SKIP_COUNT"
+
+              if [ "$SKIP_COUNT" -ge 5 ]; then
+                echo "Issue #${ISSUE_NUMBER} expired after 5 rounds"
+
+                BODY=$(printf '%s\n%s\n%s\n\n%s\n\n%s\n\n%s' \
+                  '<!-- carnival-status -->' \
+                  "<!-- skip-count: ${SKIP_COUNT} -->" \
+                  '🎪 **The carnival moves fast!**' \
+                  "Your idea went 5 rounds without being picked by the Talent Scout. Don't let that stop you — the midway loves fresh ideas!" \
+                  '**Step right up and try again with a new submission!**' \
+                  '*— Carnival Barker Bot* 🤖')
+
+                if [ -n "$COMMENT_ID" ]; then
+                  gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
+                    -X PATCH -f body="$BODY"
+                else
+                  gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$BODY"
+                fi
+
+                gh issue edit "$ISSUE_NUMBER" -R "$REPO" --add-label expired --remove-label candidate
+                gh issue close "$ISSUE_NUMBER" -R "$REPO"
+
+              else
+                ROUND_MSG="Still in the running!"
+                case $SKIP_COUNT in
+                  1) ROUND_MSG="Still in the running!" ;;
+                  2) ROUND_MSG="Still in the mix!" ;;
+                  3) ROUND_MSG="Hang in there!" ;;
+                  4) ROUND_MSG="Last chances — fingers crossed!" ;;
+                esac
+
+                BODY=$(printf '%s\n%s\n%s\n\n%s\n\n%s' \
+                  '<!-- carnival-status -->' \
+                  "<!-- skip-count: ${SKIP_COUNT} -->" \
+                  "🎟️ **${ROUND_MSG}** (round ${SKIP_COUNT}/5)" \
+                  'The Talent Scout passed this round, but your idea is still a candidate for next time.' \
+                  '*— Carnival Barker Bot* 🤖')
+
+                if [ -n "$COMMENT_ID" ]; then
+                  gh api "repos/${REPO}/issues/comments/${COMMENT_ID}" \
+                    -X PATCH -f body="$BODY"
+                else
+                  gh issue comment "$ISSUE_NUMBER" -R "$REPO" --body "$BODY"
+                fi
+              fi
+            fi
+          done
+
+          echo "Curation round complete."

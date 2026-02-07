@@ -70,5 +70,14 @@
     "issue": 16,
     "date": "2026-02-07",
     "author": "claude"
+  },
+  {
+    "id": "funhouse-mirror-maze-20",
+    "name": "Topsy-Turvy Mirror Mayhem",
+    "description": "Step right up! Can you escape when your controls betray you?",
+    "file": "funhouse-mirror-maze-20.html",
+    "issue": 20,
+    "date": "2026-02-07",
+    "author": "claude"
   }
 ]

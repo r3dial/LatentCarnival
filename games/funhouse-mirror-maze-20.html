@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Funhouse Mirror Maze</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Arial Black', Arial, sans-serif;
+  background: #1a0a2e;
+  color: #fff;
+  overflow: hidden;
+  width: 380px;
+  height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-container {
+  width: 380px;
+  height: 500px;
+  background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+  position: relative;
+  overflow: hidden;
+  border: 3px solid #8338ec;
+  box-shadow: 0 0 20px rgba(131, 56, 236, 0.5);
+}
+
+#title-screen {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  background: radial-gradient(circle at center, #2d1b4e 0%, #1a0a2e 100%);
+}
+
+h1 {
+  font-size: 32px;
+  text-align: center;
+  margin-bottom: 10px;
+  text-shadow: 0 0 10px #ff006e, 0 0 20px #ff006e;
+  animation: glow 2s ease-in-out infinite;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #ffbe0b;
+  margin-bottom: 30px;
+  text-align: center;
+  padding: 0 20px;
+}
+
+#play-btn {
+  padding: 15px 40px;
+  font-size: 24px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #ff006e, #8338ec);
+  color: white;
+  border: 3px solid #00f5d4;
+  border-radius: 50px;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 0 20px rgba(255, 0, 110, 0.6);
+  transition: all 0.3s;
+}
+
+#play-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 30px rgba(255, 0, 110, 0.9);
+}
+
+#game-screen {
+  display: none;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+#hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  z-index: 10;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+#score {
+  background: rgba(255, 0, 110, 0.3);
+  padding: 8px 15px;
+  border-radius: 20px;
+  border: 2px solid #ff006e;
+  text-shadow: 0 0 5px #ff006e;
+}
+
+#timer {
+  background: rgba(255, 190, 11, 0.3);
+  padding: 8px 15px;
+  border-radius: 20px;
+  border: 2px solid #ffbe0b;
+  text-shadow: 0 0 5px #ffbe0b;
+}
+
+#control-indicator {
+  position: absolute;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(131, 56, 236, 0.9);
+  padding: 10px 20px;
+  border-radius: 20px;
+  border: 2px solid #00f5d4;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 10;
+  text-align: center;
+  animation: pulse 0.5s ease-in-out;
+}
+
+#maze-canvas {
+  position: absolute;
+  top: 90px;
+  left: 10px;
+  border: 3px solid #8338ec;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(131, 56, 236, 0.5);
+}
+
+#game-over {
+  display: none;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(26, 10, 46, 0.95);
+  z-index: 200;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#game-over h2 {
+  font-size: 36px;
+  margin-bottom: 20px;
+  text-shadow: 0 0 10px #00f5d4, 0 0 20px #00f5d4;
+}
+
+#final-score {
+  font-size: 28px;
+  color: #ffbe0b;
+  margin-bottom: 30px;
+}
+
+#restart-btn {
+  padding: 12px 35px;
+  font-size: 20px;
+  font-weight: bold;
+  background: linear-gradient(135deg, #00f5d4, #8338ec);
+  color: white;
+  border: 3px solid #ff006e;
+  border-radius: 50px;
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 0 20px rgba(0, 245, 212, 0.6);
+}
+
+#restart-btn:hover {
+  transform: scale(1.1);
+}
+
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 10px #ff006e, 0 0 20px #ff006e; }
+  50% { text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e, 0 0 60px #ff006e; }
+}
+
+@keyframes pulse {
+  0% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.1); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+.particle {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+}
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="title-screen">
+    <h1>🎪 FUNHOUSE<br>MIRROR MAZE 🎪</h1>
+    <div class="subtitle">Navigate the maze but beware!<br>Controls flip randomly!<br>Arrow keys to move</div>
+    <button id="play-btn">Play!</button>
+  </div>
+  
+  <div id="game-screen">
+    <div id="hud">
+      <div id="score">Score: 0</div>
+      <div id="timer">Time: 45</div>
+    </div>
+    <div id="control-indicator"></div>
+    <canvas id="maze-canvas" width="360" height="390"></canvas>
+  </div>
+  
+  <div id="game-over">
+    <h2>GAME OVER!</h2>
+    <div id="final-score">Score: 0</div>
+    <button id="restart-btn">Play Again</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  const canvas = document.getElementById('maze-canvas');
+  const ctx = canvas.getContext('2d');
+  const titleScreen = document.getElementById('title-screen');
+  const gameScreen = document.getElementById('game-screen');
+  const gameOverScreen = document.getElementById('game-over');
+  const playBtn = document.getElementById('play-btn');
+  const restartBtn = document.getElementById('restart-btn');
+  const scoreEl = document.getElementById('score');
+  const timerEl = document.getElementById('timer');
+  const finalScoreEl = document.getElementById('final-score');
+  const controlIndicator = document.getElementById('control-indicator');
+  
+  const CELL_SIZE = 30;
+  const MAZE_WIDTH = 12;
+  const MAZE_HEIGHT = 13;
+  const PLAYER_SIZE = 20;
+  const EXIT_SIZE = 24;
+  
+  let gameState = {
+    score: 0,
+    timeLeft: 45,
+    playerX: 0,
+    playerY: 0,
+    exitX: 0,
+    exitY: 0,
+    maze: [],
+    controlsFlipped: false,
+    horizontalFlipped: false,
+    verticalFlipped: false,
+    flipTimer: 0,
+    gameRunning: false,
+    animationFrame: null,
+    keys: {},
+    shake: 0,
+    particles: []
+  };
+  
+  function generateMaze() {
+    const maze = Array(MAZE_HEIGHT).fill().map(() => Array(MAZE_WIDTH).fill(1));
+    const stack = [];
+    const startX = 0;
+    const startY = 0;
+    
+    maze[startY][startX] = 0;
+    stack.push([startX, startY]);
+    
+    const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    
+    while (stack.length > 0) {
+      const [x, y] = stack[stack.length - 1];
+      const neighbors = [];
+      
+      for (const [dx, dy] of directions) {
+        const nx = x + dx * 2;
+        const ny = y + dy * 2;
+        if (nx >= 0 && nx < MAZE_WIDTH && ny >= 0 && ny < MAZE_HEIGHT && maze[ny][nx] === 1) {
+          neighbors.push([nx, ny, x + dx, y + dy]);
+        }
+      }
+      
+      if (neighbors.length > 0) {
+        const [nx, ny, wx, wy] = neighbors[Math.floor(Math.random() * neighbors.length)];
+        maze[wy][wx] = 0;
+        maze[ny][nx] = 0;
+        stack.push([nx, ny]);
+      } else {
+        stack.pop();
+      }
+    }
+    
+    return maze;
+  }
+  
+  function createParticles(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count;
+      const speed = 2 + Math.random() * 3;
+      gameState.particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        color: color
+      });
+    }
+  }
+  
+  function initGame() {
+    gameState.score = 0;
+    gameState.timeLeft = 45;
+    gameState.maze = generateMaze();
+    gameState.playerX = 0.5;
+    gameState.playerY = 0.5;
+    
+    let maxDist = 0;
+    let bestExit = {x: MAZE_WIDTH - 1, y: MAZE_HEIGHT - 1};
+    
+    for (let y = 0; y < MAZE_HEIGHT; y++) {
+      for (let x = 0; x < MAZE_WIDTH; x++) {
+        if (gameState.maze[y][x] === 0) {
+          const dist = Math.abs(x - gameState.playerX) + Math.abs(y - gameState.playerY);
+          if (dist > maxDist) {
+            maxDist = dist;
+            bestExit = {x, y};
+          }
+        }
+      }
+    }
+    
+    gameState.exitX = bestExit.x + 0.5;
+    gameState.exitY = bestExit.y + 0.5;
+    gameState.controlsFlipped = false;
+    gameState.horizontalFlipped = false;
+    gameState.verticalFlipped = false;
+    gameState.flipTimer = 3 + Math.random() * 2;
+    gameState.gameRunning = true;
+    gameState.keys = {};
+    gameState.shake = 0;
+    gameState.particles = [];
+    
+    updateScore(0);
+    updateControlIndicator();
+  }
+  
+  function updateScore(delta) {
+    gameState.score += delta;
+    scoreEl.textContent = `Score: ${gameState.score}`;
+    
+    window.parent.postMessage({
+      type: 'game:score',
+      gameId: 'funhouse-mirror-maze-20',
+      score: gameState.score
+    }, '*');
+  }
+  
+  function updateControlIndicator() {
+    if (!gameState.horizontalFlipped && !gameState.verticalFlipped) {
+      controlIndicator.textContent = '✓ Normal Controls';
+      controlIndicator.style.background = 'rgba(0, 245, 212, 0.9)';
+    } else {
+      let text = '⚠ ';
+      if (gameState.horizontalFlipped) text += 'Left↔Right ';
+      if (gameState.verticalFlipped) text += 'Up↔Down';
+      controlIndicator.textContent = text;
+      controlIndicator.style.background = 'rgba(255, 0, 110, 0.9)';
+      controlIndicator.style.animation = 'pulse 0.5s ease-in-out';
+      setTimeout(() => {
+        controlIndicator.style.animation = '';
+      }, 500);
+    }
+  }
+  
+  function flipControls() {
+    const flipType = Math.random();
+    
+    if (flipType < 0.4) {
+      gameState.horizontalFlipped = !gameState.horizontalFlipped;
+    } else if (flipType < 0.8) {
+      gameState.verticalFlipped = !gameState.verticalFlipped;
+    } else {
+      gameState.horizontalFlipped = !gameState.horizontalFlipped;
+      gameState.verticalFlipped = !gameState.verticalFlipped;
+    }
+    
+    updateControlIndicator();
+    gameState.shake = 5;
+  }
+  
+  function checkCollision(x, y) {
+    const cellX = Math.floor(x);
+    const cellY = Math.floor(y);
+    
+    if (cellX < 0 || cellX >= MAZE_WIDTH || cellY < 0 || cellY >= MAZE_HEIGHT) {
+      return true;
+    }
+    
+    return gameState.maze[cellY][cellX] === 1;
+  }
+  
+  function update(deltaTime) {
+    if (!gameState.gameRunning) return;
+    
+    gameState.timeLeft -= deltaTime;
+    timerEl.textContent = `Time: ${Math.ceil(gameState.timeLeft)}`;
+    
+    if (gameState.timeLeft <= 0) {
+      endGame();
+      return;
+    }
+    
+    gameState.flipTimer -= deltaTime;
+    if (gameState.flipTimer <= 0) {
+      flipControls();
+      gameState.flipTimer = 2 + Math.random() * 3;
+    }
+    
+    const speed = 0.08;
+    let dx = 0;
+    let dy = 0;
+    
+    if (gameState.keys['ArrowLeft']) dx -= 1;
+    if (gameState.keys['ArrowRight']) dx += 1;
+    if (gameState.keys['ArrowUp']) dy -= 1;
+    if (gameState.keys['ArrowDown']) dy += 1;
+    
+    if (gameState.horizontalFlipped) dx *= -1;
+    if (gameState.verticalFlipped) dy *= -1;
+    
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.sqrt(dx * dx + dy * dy);
+      dx = dx / len * speed;
+      dy = dy / len * speed;
+      
+      const newX = gameState.playerX + dx;
+      const newY = gameState.playerY + dy;
+      
+      if (!checkCollision(newX, gameState.playerY)) {
+        gameState.playerX = newX;
+      }
+      
+      if (!checkCollision(gameState.playerX, newY)) {
+        gameState.playerY = newY;
+      }
+    }
+    
+    const distToExit = Math.sqrt(
+      Math.pow(gameState.playerX - gameState.exitX, 2) +
+      Math.pow(gameState.playerY - gameState.exitY, 2)
+    );
+    
+    if (distToExit < 0.6) {
+      const bonusPoints = Math.ceil(gameState.timeLeft * 10);
+      updateScore(100 + bonusPoints);
+      createParticles(
+        gameState.exitX * CELL_SIZE + CELL_SIZE / 2,
+        gameState.exitY * CELL_SIZE + CELL_SIZE / 2,
+        '#ffbe0b',
+        16
+      );
+      gameState.shake = 10;
+      setTimeout(() => {
+        gameState.maze = generateMaze();
+        
+        let maxDist = 0;
+        let bestExit = {x: MAZE_WIDTH - 1, y: MAZE_HEIGHT - 1};
+        
+        for (let y = 0; y < MAZE_HEIGHT; y++) {
+          for (let x = 0; x < MAZE_WIDTH; x++) {
+            if (gameState.maze[y][x] === 0) {
+              const dist = Math.abs(x - gameState.playerX) + Math.abs(y - gameState.playerY);
+              if (dist > maxDist) {
+                maxDist = dist;
+                bestExit = {x, y};
+              }
+            }
+          }
+        }
+        
+        gameState.exitX = bestExit.x + 0.5;
+        gameState.exitY = bestExit.y + 0.5;
+        gameState.timeLeft += 5;
+      }, 100);
+    }
+    
+    gameState.particles = gameState.particles.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life -= deltaTime * 2;
+      return p.life > 0;
+    });
+    
+    if (gameState.shake > 0) {
+      gameState.shake -= deltaTime * 20;
+      if (gameState.shake < 0) gameState.shake = 0;
+    }
+  }
+  
+  function draw() {
+    ctx.save();
+    
+    if (gameState.shake > 0) {
+      ctx.translate(
+        (Math.random() - 0.5) * gameState.shake,
+        (Math.random() - 0.5) * gameState.shake
+      );
+    }
+    
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    for (let y = 0; y < MAZE_HEIGHT; y++) {
+      for (let x = 0; x < MAZE_WIDTH; x++) {
+        if (gameState.maze[y][x] === 1) {
+          const gradient = ctx.createLinearGradient(
+            x * CELL_SIZE, y * CELL_SIZE,
+            (x + 1) * CELL_SIZE, (y + 1) * CELL_SIZE
+          );
+          gradient.addColorStop(0, '#8338ec');
+          gradient.addColorStop(1, '#5a1e9c');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+          
+          ctx.strokeStyle = '#6b2ec4';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+        } else {
+          ctx.fillStyle = '#0f0520';
+          ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+        }
+      }
+    }
+    
+    const time = Date.now() / 1000;
+    const exitPulse = Math.sin(time * 4) * 0.2 + 0.8;
+    const exitX = gameState.exitX * CELL_SIZE;
+    const exitY = gameState.exitY * CELL_SIZE;
+    
+    ctx.save();
+    ctx.translate(exitX, exitY);
+    
+    const exitGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, EXIT_SIZE * exitPulse);
+    exitGradient.addColorStop(0, '#ffbe0b');
+    exitGradient.addColorStop(0.5, '#fb5607');
+    exitGradient.addColorStop(1, 'rgba(255, 190, 11, 0)');
+    ctx.fillStyle = exitGradient;
+    ctx.fillRect(-EXIT_SIZE * exitPulse, -EXIT_SIZE * exitPulse, 
+                 EXIT_SIZE * 2 * exitPulse, EXIT_SIZE * 2 * exitPulse);
+    
+    ctx.fillStyle = '#ffbe0b';
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('★', 0, 0);
+    
+    ctx.restore();
+    
+    const playerX = gameState.playerX * CELL_SIZE;
+    const playerY = gameState.playerY * CELL_SIZE;
+    
+    ctx.save();
+    ctx.translate(playerX, playerY);
+    ctx.rotate(time * 2);
+    
+    const playerGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, PLAYER_SIZE / 2);
+    playerGradient.addColorStop(0, '#00f5d4');
+    playerGradient.addColorStop(1, '#ff006e');
+    ctx.fillStyle = playerGradient;
+    
+    ctx.beginPath();
+    ctx.arc(0, 0, PLAYER_SIZE / 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    
+    ctx.restore();
+    
+    gameState.particles.forEach(p => {
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life;
+      ctx.fillRect(p.x - 3, p.y - 3, 6, 6);
+    });
+    ctx.globalAlpha = 1;
+    
+    ctx.restore();
+  }
+  
+  function gameLoop() {
+    const now = performance.now();
+    const deltaTime = (now - (gameState.lastTime || now)) / 1000;
+    gameState.lastTime = now;
+    
+    update(deltaTime);
+    draw();
+    
+    if (gameState.gameRunning) {
+      gameState.animationFrame = requestAnimationFrame(gameLoop);
+    }
+  }
+  
+  function startGame() {
+    titleScreen.style.display = 'none';
+    gameScreen.style.display = 'block';
+    gameOverScreen.style.display = 'none';
+    
+    initGame();
+    gameState.lastTime = performance.now();
+    gameLoop();
+  }
+  
+  function endGame() {
+    gameState.gameRunning = false;
+    if (gameState.animationFrame) {
+      cancelAnimationFrame(gameState.animationFrame);
+    }
+    
+    finalScoreEl.textContent = `Score: ${gameState.score}`;
+    gameOverScreen.style.display = 'flex';
+    
+    window.parent.postMessage({
+      type: 'game:complete',
+      gameId: 'funhouse-mirror-maze-20',
+      score: gameState.score
+    }, '*');
+  }
+  
+  playBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+  
+  document.addEventListener('keydown', (e) => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault();
+      gameState.keys[e.key] = true;
+    }
+  });
+  
+  document.addEventListener('keyup', (e) => {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      e.preventDefault();
+      gameState.keys[e.key] = false;
+    }
+  });
+})();
+</script>
+</body>
+</html>

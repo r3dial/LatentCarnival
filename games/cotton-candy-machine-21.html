@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cotton Candy Machine</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a0a2e;
+  font-family: 'Comic Sans MS', cursive, sans-serif;
+  overflow: hidden;
+  width: 380px;
+  height: 500px;
+  position: relative;
+}
+
+#gameContainer {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+#startScreen {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+  z-index: 100;
+}
+
+#startScreen h1 {
+  color: #ff006e;
+  font-size: 36px;
+  text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e;
+  margin-bottom: 20px;
+  animation: glow 2s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 20px #ff006e, 0 0 40px #ff006e; }
+  50% { text-shadow: 0 0 30px #ff006e, 0 0 60px #ff006e, 0 0 80px #ff006e; }
+}
+
+#playButton {
+  padding: 15px 40px;
+  font-size: 24px;
+  background: linear-gradient(135deg, #ff006e, #8338ec);
+  color: white;
+  border: 3px solid #ffbe0b;
+  border-radius: 50px;
+  cursor: pointer;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  box-shadow: 0 0 20px rgba(255, 0, 110, 0.5);
+  transition: transform 0.2s;
+}
+
+#playButton:hover {
+  transform: scale(1.1);
+}
+
+#playButton:active {
+  transform: scale(0.95);
+}
+
+.instructions {
+  color: #00f5d4;
+  font-size: 14px;
+  margin-top: 20px;
+  text-align: center;
+  padding: 0 20px;
+  text-shadow: 0 0 10px #00f5d4;
+}
+
+#gameCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: none;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 10;
+}
+
+#scoreDisplay {
+  background: rgba(26, 10, 46, 0.8);
+  padding: 10px 15px;
+  border-radius: 10px;
+  border: 2px solid #ffbe0b;
+  color: #ffbe0b;
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 0 0 10px #ffbe0b;
+}
+
+#targetPattern {
+  background: rgba(26, 10, 46, 0.8);
+  padding: 10px 15px;
+  border-radius: 10px;
+  border: 2px solid #00f5d4;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.targetColor {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+#timer {
+  background: rgba(26, 10, 46, 0.8);
+  padding: 10px 15px;
+  border-radius: 10px;
+  border: 2px solid #fb5607;
+  color: #fb5607;
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 0 0 10px #fb5607;
+}
+
+#gameOver {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: rgba(26, 10, 46, 0.95);
+  z-index: 100;
+}
+
+#gameOver h2 {
+  color: #ff006e;
+  font-size: 42px;
+  text-shadow: 0 0 20px #ff006e;
+  margin-bottom: 20px;
+}
+
+#finalScore {
+  color: #ffbe0b;
+  font-size: 32px;
+  text-shadow: 0 0 15px #ffbe0b;
+  margin-bottom: 30px;
+}
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="startScreen">
+    <h1>🍭 Cotton Candy Machine 🍭</h1>
+    <button id="playButton">Play!</button>
+    <div class="instructions">
+      Move your mouse in circles to spin cotton candy!<br>
+      Match the color pattern to score points!
+    </div>
+  </div>
+  
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="hud">
+    <div id="scoreDisplay">Score: 0</div>
+    <div id="targetPattern"></div>
+    <div id="timer">45</div>
+  </div>
+  
+  <div id="gameOver">
+    <h2>Game Over!</h2>
+    <div id="finalScore">Final Score: 0</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const startScreen = document.getElementById('startScreen');
+  const playButton = document.getElementById('playButton');
+  const hud = document.getElementById('hud');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const targetPattern = document.getElementById('targetPattern');
+  const timerDisplay = document.getElementById('timer');
+  const gameOverScreen = document.getElementById('gameOver');
+  const finalScoreDisplay = document.getElementById('finalScore');
+  
+  canvas.width = 380;
+  canvas.height = 500;
+  
+  const colors = ['#ff006e', '#ffbe0b', '#00f5d4', '#8338ec', '#fb5607'];
+  
+  let gameState = {
+    playing: false,
+    score: 0,
+    mouseX: 190,
+    mouseY: 250,
+    prevMouseX: 190,
+    prevMouseY: 250,
+    centerX: 190,
+    centerY: 350,
+    angle: 0,
+    circleProgress: 0,
+    currentColor: colors[0],
+    colorIndex: 0,
+    targetColors: [],
+    collectedColors: [],
+    particles: [],
+    candyStrands: [],
+    timeLeft: 45,
+    rotationDirection: 0,
+    lastAngle: 0,
+    totalRotation: 0,
+    shake: 0
+  };
+  
+  function generateTargetPattern() {
+    const patternLength = Math.min(3 + Math.floor(gameState.score / 50), 5);
+    gameState.targetColors = [];
+    for (let i = 0; i < patternLength; i++) {
+      gameState.targetColors.push(colors[Math.floor(Math.random() * colors.length)]);
+    }
+    updateTargetDisplay();
+  }
+  
+  function updateTargetDisplay() {
+    targetPattern.innerHTML = '';
+    gameState.targetColors.forEach((color, idx) => {
+      const div = document.createElement('div');
+      div.className = 'targetColor';
+      div.style.background = color;
+      if (idx < gameState.collectedColors.length && gameState.collectedColors[idx] === color) {
+        div.style.border = '3px solid #00ff00';
+        div.style.boxShadow = '0 0 15px #00ff00';
+      }
+      targetPattern.appendChild(div);
+    });
+  }
+  
+  function createParticles(x, y, color, count = 8) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count;
+      gameState.particles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * (2 + Math.random() * 3),
+        vy: Math.sin(angle) * (2 + Math.random() * 3),
+        color: color,
+        life: 1,
+        size: 3 + Math.random() * 4
+      });
+    }
+  }
+  
+  function addCandyStrand(angle, color) {
+    const radius = 80;
+    const x = gameState.centerX + Math.cos(angle) * radius;
+    const y = gameState.centerY + Math.sin(angle) * radius;
+    
+    gameState.candyStrands.push({
+      x: x,
+      y: y,
+      angle: angle,
+      color: color,
+      life: 1,
+      size: 4 + Math.random() * 3
+    });
+    
+    if (gameState.candyStrands.length > 200) {
+      gameState.candyStrands.shift();
+    }
+  }
+  
+  playButton.addEventListener('click', startGame);
+  
+  function startGame() {
+    startScreen.style.display = 'none';
+    hud.style.display = 'flex';
+    gameState.playing = true;
+    gameState.score = 0;
+    gameState.timeLeft = 45;
+    gameState.collectedColors = [];
+    gameState.candyStrands = [];
+    gameState.particles = [];
+    gameState.totalRotation = 0;
+    
+    generateTargetPattern();
+    updateScore(0);
+    
+    const timerInterval = setInterval(() => {
+      if (!gameState.playing) {
+        clearInterval(timerInterval);
+        return;
+      }
+      gameState.timeLeft--;
+      timerDisplay.textContent = gameState.timeLeft;
+      
+      if (gameState.timeLeft <= 0) {
+        endGame();
+        clearInterval(timerInterval);
+      }
+    }, 1000);
+    
+    gameLoop();
+  }
+  
+  function updateScore(points) {
+    gameState.score += points;
+    scoreDisplay.textContent = `Score: ${gameState.score}`;
+    
+    window.parent.postMessage({
+      type: 'game:score',
+      gameId: 'cotton-candy-machine-21',
+      score: gameState.score
+    }, '*');
+  }
+  
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    gameState.prevMouseX = gameState.mouseX;
+    gameState.prevMouseY = gameState.mouseY;
+    gameState.mouseX = e.clientX - rect.left;
+    gameState.mouseY = e.clientY - rect.top;
+  });
+  
+  function checkCircularMotion() {
+    const dx = gameState.mouseX - gameState.centerX;
+    const dy = gameState.mouseY - gameState.centerY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    if (distance < 50 || distance > 150) return 0;
+    
+    const currentAngle = Math.atan2(dy, dx);
+    let angleDiff = currentAngle - gameState.lastAngle;
+    
+    if (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    if (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    
+    gameState.lastAngle = currentAngle;
+    gameState.angle = currentAngle;
+    
+    return angleDiff;
+  }
+  
+  function gameLoop() {
+    if (!gameState.playing) return;
+    
+    // Clear with shake effect
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    if (gameState.shake > 0) {
+      ctx.translate(
+        (Math.random() - 0.5) * gameState.shake,
+        (Math.random() - 0.5) * gameState.shake
+      );
+      gameState.shake *= 0.9;
+    }
+    ctx.restore();
+    
+    // Draw machine base
+    ctx.fillStyle = '#2d1b4e';
+    ctx.beginPath();
+    ctx.arc(gameState.centerX, gameState.centerY, 100, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = '#8338ec';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(gameState.centerX, gameState.centerY, 100, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Draw candy strands
+    gameState.candyStrands.forEach(strand => {
+      ctx.fillStyle = strand.color;
+      ctx.globalAlpha = strand.life;
+      ctx.beginPath();
+      ctx.arc(strand.x, strand.y, strand.size, 0, Math.PI * 2);
+      ctx.fill();
+      strand.life -= 0.005;
+    });
+    ctx.globalAlpha = 1;
+    
+    gameState.candyStrands = gameState.candyStrands.filter(s => s.life > 0);
+    
+    // Update and draw particles
+    gameState.particles.forEach(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.2;
+      p.life -= 0.02;
+      
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    
+    gameState.particles = gameState.particles.filter(p => p.life > 0);
+    
+    // Check circular motion
+    const rotation = checkCircularMotion();
+    
+    if (Math.abs(rotation) > 0.05) {
+      gameState.totalRotation += Math.abs(rotation);
+      
+      // Add candy strand
+      addCandyStrand(gameState.angle, gameState.currentColor);
+      
+      // Check for complete rotation
+      if (gameState.totalRotation >= Math.PI * 2) {
+        gameState.totalRotation = 0;
+        
+        // Check if color matches pattern
+        if (gameState.collectedColors.length < gameState.targetColors.length) {
+          gameState.collectedColors.push(gameState.currentColor);
+          
+          const expectedColor = gameState.targetColors[gameState.collectedColors.length - 1];
+          
+          if (gameState.currentColor === expectedColor) {
+            // Correct color!
+            updateScore(10);
+            createParticles(gameState.centerX, gameState.centerY, gameState.currentColor, 15);
+            gameState.shake = 8;
+          } else {
+            // Wrong color
+            gameState.collectedColors = [];
+          }
+          
+          updateTargetDisplay();
+        }
+        
+        // Check if pattern complete
+        if (gameState.collectedColors.length === gameState.targetColors.length) {
+          const allMatch = gameState.collectedColors.every((c, i) => c === gameState.targetColors[i]);
+          
+          if (allMatch) {
+            updateScore(50);
+            createParticles(gameState.centerX, gameState.centerY, '#ffbe0b', 30);
+            gameState.shake = 15;
+            gameState.collectedColors = [];
+            generateTargetPattern();
+          }
+        }
+        
+        // Change color
+        gameState.colorIndex = (gameState.colorIndex + 1) % colors.length;
+        gameState.currentColor = colors[gameState.colorIndex];
+      }
+    }
+    
+    // Draw stick
+    ctx.strokeStyle = '#ffbe0b';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(gameState.centerX, gameState.centerY);
+    ctx.lineTo(gameState.mouseX, gameState.mouseY);
+    ctx.stroke();
+    
+    // Draw stick handle
+    ctx.fillStyle = '#fb5607';
+    ctx.beginPath();
+    ctx.arc(gameState.mouseX, gameState.mouseY, 12, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = '#ffbe0b';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(gameState.mouseX, gameState.mouseY, 12, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // Draw center spinner
+    ctx.fillStyle = gameState.currentColor;
+    ctx.beginPath();
+    ctx.arc(gameState.centerX, gameState.centerY, 20, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(gameState.centerX, gameState.centerY, 20, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    requestAnimationFrame(gameLoop);
+  }
+  
+  function endGame() {
+    gameState.playing = false;
+    gameOverScreen.style.display = 'flex';
+    finalScoreDisplay.textContent = `Final Score: ${gameState.score}`;
+    
+    window.parent.postMessage({
+      type: 'game:complete',
+      gameId: 'cotton-candy-machine-21',
+      score: gameState.score
+    }, '*');
+  }
+})();
+</script>
+</body>
+</html>

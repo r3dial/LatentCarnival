@@ -88,5 +88,14 @@
     "issue": 17,
     "date": "2026-02-07",
     "author": "claude"
+  },
+  {
+    "id": "goldfish-scoop-19",
+    "name": "Splash & Dash Goldfish Derby",
+    "description": "Race the clock! Scoop prize fish before your net melts away!",
+    "file": "goldfish-scoop-19.html",
+    "issue": 19,
+    "date": "2026-02-07",
+    "author": "claude"
   }
 ]
